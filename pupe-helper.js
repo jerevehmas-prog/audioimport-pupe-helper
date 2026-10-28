@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      3.5
+// @version      3.8
 // @description  Liikennevalot parannetulla kontrastilla ja DPD-priorisoinnilla
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -51,17 +51,44 @@
         return { ts, line1, line2 };
     }
 
+    
+    function varmistaLegend(table) {
+        let legend = document.getElementById("ai-color-legend");
+        if (!legend) {
+            legend = document.createElement("div");
+            legend.id = "ai-color-legend";
+            legend.style.margin = "8px 0 10px 0";
+            legend.style.display = "inline-flex";
+            legend.style.flexWrap = "wrap";
+            legend.style.alignItems = "center";
+            legend.style.gap = "8px";
+            legend.style.fontSize = "11px";
+            legend.style.fontFamily = "Arial, sans-serif";
+            table.parentNode.insertBefore(legend, table);
+        }
+
+        legend.innerHTML = `
+            <span style="font-weight:bold; color:#475569; margin-right:2px;">Värikoodit:</span>
+            <span style="background:#fde8e8; color:#9b1c1c; border:1px solid #f8b4b4; border-left:4px solid #e02424; padding:2px 8px; border-radius:3px; font-weight:bold; white-space:nowrap;">🔴 = Prio 1</span>
+            <span style="background:#fef3c7; color:#78350f; border:1px solid #fcd34d; border-left:4px solid #d97706; padding:2px 8px; border-radius:3px; font-weight:bold; white-space:nowrap;">🟡 = Prio 2</span>
+            <span style="background:#ecfdf5; color:#065f46; border:1px solid #6ee7b7; border-left:4px solid #059669; padding:2px 8px; border-radius:3px; font-weight:bold; white-space:nowrap;">🟢 = Prio 3</span>
+        `;
+    }
+
     function varmistaStatusOtsikko(table) {
         const thead = table.querySelector('thead');
         if (!thead) return;
 
         const headerRow = thead.querySelector('tr');
-        if (headerRow && !headerRow.querySelector('.ai-status-th')) {
-            const th = document.createElement('th');
-            th.className = 'ai-status-th';
-            th.innerText = 'Tila';
-            th.style.textAlign = 'center';
-            headerRow.insertBefore(th, headerRow.firstChild);
+        if (headerRow) {
+            let th = headerRow.querySelector('.ai-status-th');
+            if (!th) {
+                th = document.createElement('th');
+                th.className = 'ai-status-th';
+                th.style.textAlign = 'center';
+                headerRow.insertBefore(th, headerRow.firstChild);
+            }
+            th.innerText = 'Aika jonossa';
         }
 
         const summaryRow = table.querySelector('tbody tr:not(.niputettava_rivi)');
@@ -222,6 +249,7 @@
         if (vanhaBanner) vanhaBanner.remove();
 
         varmistaStatusOtsikko(table);
+        varmistaLegend(table);
 
         const dataRows = Array.from(table.querySelectorAll('tr.niputettava_rivi'));
         if (dataRows.length === 0) return;
