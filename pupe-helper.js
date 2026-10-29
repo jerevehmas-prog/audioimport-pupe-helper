@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      4.5
+// @version      4.6
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -199,6 +199,9 @@
     }
 
     if (!isPupesoft) return;
+
+    const EXTRA_REGEX = /(?:extra[\s_\-&;%20]*delivery(?:[\s_\-&;%20]*cost)?|pikarahti|pikatoimitus)/i;
+    const PIKA_REGEX = /(?:pikatilaus|pika-tilaus|rush\s*order|urgent\s*order|priority\s*order|express\s*order|urgent|rush|extra[\s_\-&;%20]*delivery(?:[\s_\-&;%20]*cost)?|pikarahti|pikatoimitus)/i;
 
     // =========================================================================
     // OSA 2: KERÄÄ TILAUS -SIVUN PARANNUKSET (keraa.php)
@@ -517,9 +520,18 @@
         const keraaText = document.body.textContent || '';
         const headTitle = document.querySelector('font.head') || document.querySelector('.head') || document.querySelector('h1');
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const keraaTilausNro = urlParams.get('id') || (() => {
+            const m = document.body.textContent.match(/Tilaus[:\s]+(\d{5,8})/i);
+            return m ? m[1] : '';
+        })();
+
         if (headTitle) {
             // 1. Pikatilaus-badge
-            if (/\b(extra[\s_-]*delivery(?:[\s_-]*cost)?|pikarahti|pikatoimitus|pikatilaus|rush order|urgent order)\b/i.test(keraaText)) {
+            if (PIKA_REGEX.test(keraaText)) {
+                if (keraaTilausNro) {
+                    sessionStorage.setItem('ai_extra_' + keraaTilausNro, '1');
+                }
                 let pikaBadge = document.getElementById('ai-keraa-pika-badge');
                 if (!pikaBadge) {
                     pikaBadge = document.createElement('span');
@@ -531,12 +543,6 @@
             }
 
             // 2. Laske rahti -painike suoraan keräyssivulle
-            const urlParams = new URLSearchParams(window.location.search);
-            const keraaTilausNro = urlParams.get('id') || (() => {
-                const m = document.body.textContent.match(/Tilaus[:\s]+(\d{5,8})/i);
-                return m ? m[1] : '';
-            })();
-
             if (keraaTilausNro) {
                 let rahtiKeraaBtn = document.getElementById('ai-keraa-rahti-btn');
                 if (!rahtiKeraaBtn) {
@@ -562,9 +568,6 @@
     // =========================================================================
     // OSA 3: PUPESOFTIN KERÄYSLISTA (audioimport.ahkio.com)
     // =========================================================================
-
-    const EXTRA_REGEX = /\b(extra[\s_-]*delivery(?:[\s_-]*cost)?|pikarahti|pikatoimitus)\b/i;
-    const PIKA_REGEX = /\b(pikatilaus|pika-tilaus|rush order|urgent order|priority order|express order|urgent|rush|extra[\s_-]*delivery(?:[\s_-]*cost)?|pikarahti|pikatoimitus)\b/i;
 
     function parseValmisTimestamp(cell) {
         if (!cell) return { ts: 0, line1: '', line2: '' };
@@ -733,44 +736,109 @@
         });
     }
 
-    async function fetchOrderHtml(tilausNumero) {
-        // 0. Jos ollaan jo keraa.php-sivulla ja katsellaan kyseistä tilausta, käytetään suoraan nykyistä sivua!
+    async function fetchOrderHtml(tilausNumero, optionalRow) {
+        if (!tilausNumero) return '';
+
+        // 0. Jos tilauksen tiedot (ja tuoterivit) ovat JO avattuna nykyisellä sivulla (esim. keraa.php tai Näytä-painikkeella avattu tulostusjono)
         try {
-            if (location.pathname.includes('keraa.php')) {
-                const urlParams = new URLSearchParams(window.location.search);
-                const currentId = urlParams.get('id');
-                if (currentId === String(tilausNumero) || !tilausNumero) {
-                    const pageHtml = document.documentElement.outerHTML;
-                    if (pageHtml.includes('maintable') || pageHtml.includes('keraysrivi')) {
-                        return pageHtml;
-                    }
-                }
+            const pageDoc = document.documentElement.outerHTML;
+            const hasOrderHeading = new RegExp(`(?:Tilaus|Tilausnumero)[:\\s]+${tilausNumero}\\b`, 'i').test(pageDoc) ||
+                                    new RegExp(`otunnus=${tilausNumero}\\b`, 'i').test(pageDoc) ||
+                                    new RegExp(`id=${tilausNumero}\\b`, 'i').test(pageDoc) ||
+                                    new RegExp(`value=["']?${tilausNumero}["']?`, 'i').test(pageDoc);
+
+            const hasProductRows = pageDoc.includes('Tilausrivit') || pageDoc.includes('keraysrivi') || pageDoc.includes('maintable');
+
+            if (hasOrderHeading && hasProductRows) {
+                console.log(`[Pupe-Helper] Tilaus #${tilausNumero} löytyi suoraan nykyiseltä sivulta!`);
+                return pageDoc;
             }
         } catch (e) {}
 
-        // 1. Ensisijainen: Haetaan keraa.php, joka sisältää varmuudella kaikki tuoterivit, määrät ja toimitusosoitteen
+        // 1. Jos rivillä on suoraan "Näytä" -lomake tai painike (Pupesoft lahetteen_tulostusjono.php)
+        if (optionalRow) {
+            try {
+                const forms = Array.from(optionalRow.querySelectorAll('form'));
+                const naytaForm = forms.find(f => {
+                    const txt = (f.textContent || '') + (f.innerHTML || '');
+                    return txt.includes('Näytä') || txt.includes('NAYTATILAUS');
+                }) || forms[0];
+
+                if (naytaForm) {
+                    const params = new URLSearchParams();
+                    const fd = new FormData(naytaForm);
+                    for (const [k, v] of fd.entries()) {
+                        params.append(k, v);
+                    }
+                    if (!params.get('tee2')) params.set('tee2', 'NAYTATILAUS');
+                    if (!params.get('tunnus')) params.set('tunnus', tilausNumero);
+
+                    const formAction = naytaForm.getAttribute('action') || window.location.pathname || 'lahetteen_tulostusjono.php';
+                    const res = await fetch(formAction, {
+                        method: (naytaForm.method || 'POST').toUpperCase(),
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: params.toString(),
+                        credentials: 'include'
+                    });
+
+                    if (res.ok) {
+                        const text = await res.text();
+                        if (text.includes('Tilausrivit') || text.includes('Toimitusosoite') || text.includes('keraysrivi') || text.includes('maintable')) {
+                            console.log(`[Pupe-Helper] Tilaus #${tilausNumero} noudettiin rivin Näytä-lomakkeella!`);
+                            return text;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[Pupe-Helper] Virhe rivin lomakehaussa:', err);
+            }
+        }
+
+        // 2. NAYTATILAUS POST lahetteen_tulostusjono.php nykyisen sivun lomakekentillä
         try {
-            const res = await fetch(`/tilauskasittely/keraa.php?id=${tilausNumero}&toim=`, {
+            const baseParams = new URLSearchParams();
+            const mainForm = document.querySelector('form[action*="tulostusjono"], form#valinnat, form[name="valinnat"]') || document.forms[0];
+            if (mainForm) {
+                try {
+                    const mfd = new FormData(mainForm);
+                    for (const [k, v] of mfd.entries()) {
+                        if (!['tee2', 'tee', 'tunnus', 'otunnus'].includes(k)) {
+                            baseParams.append(k, v);
+                        }
+                    }
+                } catch (e) {}
+            }
+            baseParams.set('tee2', 'NAYTATILAUS');
+            baseParams.set('tunnus', tilausNumero);
+
+            const postUrl = window.location.pathname || '/tilauskasittely/lahetteen_tulostusjono.php';
+            const resPost = await fetch(postUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: baseParams.toString(),
                 credentials: 'include'
             });
-            if (res.ok) {
-                const text = await res.text();
-                if (text.includes('maintable') || text.includes('keraysrivi') || text.includes('info_table')) {
-                    return text;
+
+            if (resPost.ok) {
+                const textPost = await resPost.text();
+                if (textPost.includes('Tilausrivit') || textPost.includes('Toimitusosoite') || textPost.includes('keraysrivi')) {
+                    console.log(`[Pupe-Helper] Tilaus #${tilausNumero} noudettiin tulostusjonon POST-haulla!`);
+                    return textPost;
                 }
             }
         } catch (err) {
-            console.warn('[Pupe-Helper] keraa.php haku epäonnistui:', err);
+            console.warn('[Pupe-Helper] Virhe tulostusjonon POST-haussa:', err);
         }
 
-        // 2. Toissijainen: tulostakopio.php
+        // 3. tulostakopio.php (Pupesoftin tilaus- ja lähetetuloste)
         try {
             const resKopio = await fetch(`/tilauskasittely/tulostakopio.php?otunnus=${tilausNumero}&toim=LAHETE&tee=NAYTATILAUS`, {
                 credentials: 'include'
             });
             if (resKopio.ok) {
                 const textKopio = await resKopio.text();
-                if (textKopio && textKopio.length > 200) {
+                if (textKopio && (textKopio.includes('Tilausrivit') || textKopio.includes('Toimitusosoite') || textKopio.length > 500)) {
+                    console.log(`[Pupe-Helper] Tilaus #${tilausNumero} noudettiin tulostakopio.php:stä!`);
                     return textKopio;
                 }
             }
@@ -778,27 +846,23 @@
             console.warn('[Pupe-Helper] tulostakopio.php haku epäonnistui:', err);
         }
 
-        // 3. Kolmassijainen: NAYTATILAUS POST lahetteen_tulostusjono.php
+        // 4. keraa.php (keräilysivu)
         try {
-            const formData = new FormData();
-            formData.append('tee2', 'NAYTATILAUS');
-            formData.append('tunnus', tilausNumero);
-            formData.append('lasku_yhtio', 'audio');
-            formData.append('tuvarasto', 'KAIKKI');
-            formData.append('tutyyppi', 'KAIKKI');
-            formData.append('tutoimtapa', 'KAIKKI');
-            formData.append('karajaus', '3');
-
-            const response = await fetch(window.location.pathname || 'lahetteen_tulostusjono.php', {
-                method: 'POST',
-                body: formData,
+            const resKeraa = await fetch(`/tilauskasittely/keraa.php?id=${tilausNumero}&toim=`, {
                 credentials: 'include'
             });
-            return await response.text();
+            if (resKeraa.ok) {
+                const textKeraa = await resKeraa.text();
+                if (textKeraa.includes('maintable') || textKeraa.includes('keraysrivi') || textKeraa.includes('info_table')) {
+                    console.log(`[Pupe-Helper] Tilaus #${tilausNumero} noudettiin keraa.php:stä!`);
+                    return textKeraa;
+                }
+            }
         } catch (err) {
-            console.error('[Pupe-Helper] NAYTATILAUS POST epäonnistui:', err);
-            return '';
+            console.warn('[Pupe-Helper] keraa.php haku epäonnistui:', err);
         }
+
+        return '';
     }
 
     const skannatutTallaSivulla = new Set();
@@ -806,15 +870,32 @@
     async function tarkistaExtraDeliveryCostTaustalla(dataRows, tbody, summaryRow) {
         let uusiaLoytyi = false;
 
+        // 1. Tarkistetaan ensin, onko sivulle jo valmiiksi auki jokin tilaus (esim. Näytä-painikkeella klikattu)
+        try {
+            const pageBodyText = document.body.innerText || document.body.textContent || '';
+            const openOrderMatch = pageBodyText.match(/Tilaus[:\s]+(\d{5,8})/i) || pageBodyText.match(/Tilausnumero[:\s]+(\d{5,8})/i);
+            if (openOrderMatch) {
+                const avoinTilausNro = openOrderMatch[1];
+                if (EXTRA_REGEX.test(pageBodyText) || PIKA_REGEX.test(pageBodyText)) {
+                    console.log(`[Pupe-Helper] 🔥 Avoin tilaus #${avoinTilausNro} sisältää EXTRA DELIVERY COST / pikatilauksen!`);
+                    sessionStorage.setItem('ai_extra_' + avoinTilausNro, '1');
+                    const avoinRivi = dataRows.find(r => r.dataset.tilausNumero === avoinTilausNro);
+                    if (avoinRivi && avoinRivi.dataset.isPika !== '1') {
+                        avoinRivi.dataset.isPika = '1';
+                        avoinRivi.dataset.colorCategory = 'red';
+                        asetaRivinStatus(avoinRivi, '<span style="background:#dc2626; color:#ffffff; font-size:9pt; font-weight:bold; padding:2px 7px; border-radius:3px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.15);">🔥 PIKATILAUS</span>', '#fde8e8', '#e02424');
+                        uusiaLoytyi = true;
+                    }
+                }
+            }
+        } catch (e) {}
+
+        // 2. Käydään läpi kaikki jonon rivit
         for (const row of dataRows) {
             const tilausNumero = row.dataset.tilausNumero || (row.querySelector('.ai-status-td') ? row.querySelectorAll('td')[2] : row.querySelectorAll('td')[1])?.textContent.trim().match(/\d+/)?.[0];
             if (!tilausNumero) continue;
 
             if (row.dataset.isPika === '1') continue;
-
-            // Vältetään saman tilauksen toistuva haku saman sivulatauksen aikana
-            if (skannatutTallaSivulla.has(tilausNumero)) continue;
-            skannatutTallaSivulla.add(tilausNumero);
 
             // Jos pikatilaus on jo aiemmin todettu, asetetaan heti
             if (sessionStorage.getItem('ai_extra_' + tilausNumero) === '1') {
@@ -825,59 +906,26 @@
                 continue;
             }
 
-            // 1. Tarkistetaan ensin suoraan riviltä tai mahdollisilta sivulle avatuilta tilausriveiltä
+            // Vältetään saman tilauksen toistuva haku saman sivulatauksen aikana
+            if (skannatutTallaSivulla.has(tilausNumero)) continue;
+            skannatutTallaSivulla.add(tilausNumero);
+
+            // Tarkistetaan ensin suoraan riviltä
             const rowText = row.textContent || '';
-            if (EXTRA_REGEX.test(rowText)) {
+            if (EXTRA_REGEX.test(rowText) || PIKA_REGEX.test(rowText)) {
                 sessionStorage.setItem('ai_extra_' + tilausNumero, '1');
                 row.dataset.isPika = '1';
                 row.dataset.colorCategory = 'red';
                 asetaRivinStatus(row, '<span style="background:#dc2626; color:#ffffff; font-size:9pt; font-weight:bold; padding:2px 7px; border-radius:3px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.15);">🔥 PIKATILAUS</span>', '#fde8e8', '#e02424');
                 uusiaLoytyi = true;
+                jarjestaRivit(dataRows, tbody, summaryRow);
                 continue;
             }
 
-            // 2. Haetaan tilauksen sisältö taustalla
+            // Haetaan tilauksen sisältö taustalla
             try {
-                let htmlText = '';
-
-                // A. Kokeillaan ensin keraa.php, joka palauttaa tilauksen kaikki tuoterivit aina varmasti
-                try {
-                    const resKeraa = await fetch(`/tilauskasittely/keraa.php?id=${tilausNumero}&toim=`, {
-                        credentials: 'include'
-                    });
-                    if (resKeraa.ok) {
-                        const text = await resKeraa.text();
-                        if (text.includes('keraysrivi') || text.includes('maintable')) {
-                            htmlText = text;
-                        }
-                    }
-                } catch (e) {}
-
-                // B. Varalla: NAYTATILAUS POST lahetteen_tulostusjono.php
-                if (!htmlText) {
-                    try {
-                        const formData = new FormData();
-                        formData.append('tee2', 'NAYTATILAUS');
-                        formData.append('tunnus', tilausNumero);
-                        formData.append('lasku_yhtio', 'audio');
-                        formData.append('tuvarasto', 'KAIKKI');
-                        formData.append('tutyyppi', 'KAIKKI');
-                        formData.append('tutoimtapa', 'KAIKKI');
-                        formData.append('karajaus', '3');
-
-                        const postUrl = window.location.pathname || '/tilauskasittely/lahetteen_tulostusjono.php';
-                        const resPost = await fetch(postUrl, {
-                            method: 'POST',
-                            body: formData,
-                            credentials: 'include'
-                        });
-                        if (resPost.ok) {
-                            htmlText = await resPost.text();
-                        }
-                    } catch (e) {}
-                }
-
-                const onExtra = EXTRA_REGEX.test(htmlText);
+                const htmlText = await fetchOrderHtml(tilausNumero, row);
+                const onExtra = EXTRA_REGEX.test(htmlText) || PIKA_REGEX.test(htmlText);
                 console.log(`[Pupe-Helper] Tilaus #${tilausNumero} taustaskannattu. Extra delivery: ${onExtra}`);
 
                 if (onExtra) {
@@ -886,6 +934,7 @@
                     row.dataset.colorCategory = 'red';
                     asetaRivinStatus(row, '<span style="background:#dc2626; color:#ffffff; font-size:9pt; font-weight:bold; padding:2px 7px; border-radius:3px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.15);">🔥 PIKATILAUS</span>', '#fde8e8', '#e02424');
                     uusiaLoytyi = true;
+                    jarjestaRivit(dataRows, tbody, summaryRow);
                 }
             } catch (err) {
                 console.error('[Pupe-Helper] Virhe taustahaussa:', tilausNumero, err);
@@ -951,7 +1000,7 @@
                 statusCallback(`Noudetaan tilaus #${ord.tilausNumero} (${i + 1}/${valitutTilaukset.length})...`);
             }
             try {
-                const html = await fetchOrderHtml(ord.tilausNumero);
+                const html = await fetchOrderHtml(ord.tilausNumero, ord.row);
                 if (html && html.trim()) {
                     ordersData.push({ tilausNumero: ord.tilausNumero, html });
                 }
@@ -1236,6 +1285,18 @@
         const now = Date.now();
 
         const toimitustapaIdx = haeToimitustapaColIndex(table);
+
+        // Tarkistetaan heti alussa, onko sivulle avattu tilaus jolla on EXTRA DELIVERY COST / pikatilaus
+        try {
+            const pageBodyText = document.body.innerText || document.body.textContent || '';
+            const openOrderMatch = pageBodyText.match(/Tilaus[:\s]+(\d{5,8})/i) || pageBodyText.match(/Tilausnumero[:\s]+(\d{5,8})/i);
+            if (openOrderMatch) {
+                const avoinTilausNro = openOrderMatch[1];
+                if (EXTRA_REGEX.test(pageBodyText) || PIKA_REGEX.test(pageBodyText)) {
+                    sessionStorage.setItem('ai_extra_' + avoinTilausNro, '1');
+                }
+            }
+        } catch (e) {}
 
         // Kerätään asiakkaiden tilaukset yhdistämistä varten
         const customerMap = new Map();
