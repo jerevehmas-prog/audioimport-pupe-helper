@@ -9,6 +9,11 @@ Pupesoft ERP -keräysjonon automaattinen älykkäämpi järjestely ja priorisoin
   - 🟢 Vihreä: Alle 24 h / tänään tulleet (`#ecfdf5`, reunaviiva `#059669`)
 - ⚡ **Toimitustapapriorisointi (DPD):** Jokaisen väritason sisällä **DPD**-toimitukset nousevat automaattisesti ensimmäiseksi, minkä jälkeen tilaukset ovat vanhimmasta uusimpaan.
 - 🔥 **Pikatilaukset:** Tunnistaa tekstit (`pikatilaus`, `rush order` jne.) ja skannaa taustalla tilauksen tuoteriveiltä automaattisesti tuotteen `EXTRA DELIVERY COST`.
+- 📦 **Suora Rahtilaskuri-integraatio & tilausten yhdistäminen:** Keräyslistalla jokaisella rivillä on suora "Laske rahti" -painike. Jos samalle asiakkaalle on useita tilauksia jonossa, painike ilmoittaa tilauksien määrän ja avaa helpon yhdistelyikkunan, josta valitut tilaukset siirtyvät automaattisesti Rahtilaskuriin ja yhdistyvät samaan kuormaan.
+- 🎨 **Keräilysivun (keraa.php) selkeytys:**
+  - Joka toinen tuoterivi pehmeällä harmaalla taustalla erottamisen helpottamiseksi.
+  - Kerätyt rivit korostuvat välittömästi smaragdinvihreällä (`#d1fae5`), 8px vihreällä huomiopalkilla ja vihreällä `✓ Päivitä` -napilla.
+  - Keräyskommentit on sidottu saumattomasti ja selkeästi yläpuoliseen tuotteeseen ilman ylimääräisiä häiritseviä tekstejä (sisennys, nuoli ja varoituskolmio `↳ ⚠️`).
 - ☁️ **Reaaliaikainen pilvipäivitys:** Laitteille asennetaan kevyt latausohjelma (`loader.user.js`), joka noutaa uusimman koodin suoraan tästä repositoriosta joka kerta kun sivu ladataan.
 
 ---

@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      1.1
+// @version      1.2
 // @description  Audioimport Pupesoft keräyslistan automaattinen älykkäämpi järjestely ja pilvilataaja
 // @author       Audioimport Oy
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
+// @match        https://rahtilaskuri.audioimport.workers.dev/*
 // @connect      raw.githubusercontent.com
 // @connect      cdn.jsdelivr.net
 // @grant        GM_xmlhttpRequest
