@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      4.6
+// @version      4.7
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -201,7 +201,21 @@
     if (!isPupesoft) return;
 
     const EXTRA_REGEX = /(?:extra[\s_\-&;%20]*delivery(?:[\s_\-&;%20]*cost)?|pikarahti|pikatoimitus)/i;
-    const PIKA_REGEX = /(?:pikatilaus|pika-tilaus|rush\s*order|urgent\s*order|priority\s*order|express\s*order|urgent|rush|extra[\s_\-&;%20]*delivery(?:[\s_\-&;%20]*cost)?|pikarahti|pikatoimitus)/i;
+    const PIKA_REGEX = /(?:pikatilaus|pika[\s_\-]*tilaus|pikatoimitus|pika[\s_\-]*toimitus|pikarahti|pika[\s_\-]*rahti|\bpikana\b|\bpika\b|kiireellinen[\s_\-]*tilaus|\bkiireellinen\b|\bkiire\b|rush[\s_\-]*order|\brush\b|urgent[\s_\-]*order|\burgent\b|priority[\s_\-]*order|\bpriority\b|express[\s_\-]*order|express[\s_\-]*delivery|express[\s_\-]*shipping|\bexpress\b|fast[\s_\-]*delivery|fast[\s_\-]*shipping|quick[\s_\-]*delivery|quick[\s_\-]*order|extra[\s_\-&;%20]*delivery(?:[\s_\-&;%20]*cost)?|same[\s_\-]*day|\bsameday\b)/i;
+
+    function cleanTextForPikaCheck(text) {
+        if (!text) return '';
+        return String(text)
+            .replace(/\b(?:posti|dhl|tnt|gls|schenker|ups|fedex|dpd)\s+express\b/gi, 'carrier_deliv')
+            .replace(/Toimitustapa[\s\S]*?(?:<\/tr>|\n\s*\n)/gi, '');
+    }
+
+    function onkoPikatilaus(textOrHtml) {
+        if (!textOrHtml) return false;
+        if (EXTRA_REGEX.test(textOrHtml)) return true;
+        const cleaned = cleanTextForPikaCheck(textOrHtml);
+        return PIKA_REGEX.test(cleaned);
+    }
 
     // =========================================================================
     // OSA 2: KERÄÄ TILAUS -SIVUN PARANNUKSET (keraa.php)
@@ -517,7 +531,7 @@
         setTimeout(alustaKeraaRivit, 1000);
 
         // Pikatilaus-tunniste ja Laske rahti -painike keräilysivun yläreunaan
-        const keraaText = document.body.textContent || '';
+        const keraaText = (document.body.innerText || document.body.textContent || '') + ' ' + (document.body.innerHTML || '');
         const headTitle = document.querySelector('font.head') || document.querySelector('.head') || document.querySelector('h1');
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -528,7 +542,7 @@
 
         if (headTitle) {
             // 1. Pikatilaus-badge
-            if (PIKA_REGEX.test(keraaText)) {
+            if (onkoPikatilaus(keraaText)) {
                 if (keraaTilausNro) {
                     sessionStorage.setItem('ai_extra_' + keraaTilausNro, '1');
                 }
@@ -872,11 +886,11 @@
 
         // 1. Tarkistetaan ensin, onko sivulle jo valmiiksi auki jokin tilaus (esim. Näytä-painikkeella klikattu)
         try {
-            const pageBodyText = document.body.innerText || document.body.textContent || '';
+            const pageBodyText = (document.body.innerText || document.body.textContent || '') + ' ' + (document.body.innerHTML || '');
             const openOrderMatch = pageBodyText.match(/Tilaus[:\s]+(\d{5,8})/i) || pageBodyText.match(/Tilausnumero[:\s]+(\d{5,8})/i);
             if (openOrderMatch) {
                 const avoinTilausNro = openOrderMatch[1];
-                if (EXTRA_REGEX.test(pageBodyText) || PIKA_REGEX.test(pageBodyText)) {
+                if (onkoPikatilaus(pageBodyText)) {
                     console.log(`[Pupe-Helper] 🔥 Avoin tilaus #${avoinTilausNro} sisältää EXTRA DELIVERY COST / pikatilauksen!`);
                     sessionStorage.setItem('ai_extra_' + avoinTilausNro, '1');
                     const avoinRivi = dataRows.find(r => r.dataset.tilausNumero === avoinTilausNro);
@@ -910,9 +924,14 @@
             if (skannatutTallaSivulla.has(tilausNumero)) continue;
             skannatutTallaSivulla.add(tilausNumero);
 
-            // Tarkistetaan ensin suoraan riviltä
-            const rowText = row.textContent || '';
-            if (EXTRA_REGEX.test(rowText) || PIKA_REGEX.test(rowText)) {
+            // Tarkistetaan ensin suoraan rivin sisällöstä, mukaan lukien title/alt/tooltip -lisätiedot
+            let rowCheckText = row.textContent || '';
+            row.querySelectorAll('*').forEach(el => {
+                if (el.title) rowCheckText += ' ' + el.title;
+                if (el.alt) rowCheckText += ' ' + el.alt;
+            });
+
+            if (onkoPikatilaus(rowCheckText) || onkoPikatilaus(row.innerHTML || '')) {
                 sessionStorage.setItem('ai_extra_' + tilausNumero, '1');
                 row.dataset.isPika = '1';
                 row.dataset.colorCategory = 'red';
@@ -922,13 +941,13 @@
                 continue;
             }
 
-            // Haetaan tilauksen sisältö taustalla
+            // Haetaan tilauksen sisältö taustalla (sisältää tilauskommentit, lisätiedot ja tilausrivit)
             try {
                 const htmlText = await fetchOrderHtml(tilausNumero, row);
-                const onExtra = EXTRA_REGEX.test(htmlText) || PIKA_REGEX.test(htmlText);
-                console.log(`[Pupe-Helper] Tilaus #${tilausNumero} taustaskannattu. Extra delivery: ${onExtra}`);
+                const onPika = onkoPikatilaus(htmlText);
+                console.log(`[Pupe-Helper] Tilaus #${tilausNumero} taustaskannattu. Pikatilaus: ${onPika}`);
 
-                if (onExtra) {
+                if (onPika) {
                     sessionStorage.setItem('ai_extra_' + tilausNumero, '1');
                     row.dataset.isPika = '1';
                     row.dataset.colorCategory = 'red';
@@ -1288,11 +1307,11 @@
 
         // Tarkistetaan heti alussa, onko sivulle avattu tilaus jolla on EXTRA DELIVERY COST / pikatilaus
         try {
-            const pageBodyText = document.body.innerText || document.body.textContent || '';
+            const pageBodyText = (document.body.innerText || document.body.textContent || '') + ' ' + (document.body.innerHTML || '');
             const openOrderMatch = pageBodyText.match(/Tilaus[:\s]+(\d{5,8})/i) || pageBodyText.match(/Tilausnumero[:\s]+(\d{5,8})/i);
             if (openOrderMatch) {
                 const avoinTilausNro = openOrderMatch[1];
-                if (EXTRA_REGEX.test(pageBodyText) || PIKA_REGEX.test(pageBodyText)) {
+                if (onkoPikatilaus(pageBodyText)) {
                     sessionStorage.setItem('ai_extra_' + avoinTilausNro, '1');
                 }
             }
@@ -1347,15 +1366,31 @@
             const riviCount = tds[6 + offset] ? tds[6 + offset].textContent.trim() : '';
             const paino = tds[7 + offset] ? tds[7 + offset].textContent.trim() : '';
 
-            // Tekstitarkistus pikatilauksille
-            const popups = Array.from(row.querySelectorAll('.popup, .tooltip'));
+            // Tekstitarkistus pikatilauksille: luetaan solut, popupt, tooltipit ja kaikki elementtien lisätietoattribuutit
+            const popups = Array.from(row.querySelectorAll('.popup, .tooltip, .tip, [class*="popup"], [class*="tooltip"]'));
             const popupText = popups.map(p => p.textContent || p.innerHTML).join(' ');
-            const textWithoutDelivery = [tds[0 + offset], tds[1 + offset], tds[2 + offset], tds[3 + offset], tds[4 + offset]].map(td => td ? td.textContent : '').join(' ') + ' ' + popupText;
 
-            const isTextPika = PIKA_REGEX.test(textWithoutDelivery);
+            let rowAttrsText = '';
+            row.querySelectorAll('*').forEach(el => {
+                if (el.title) rowAttrsText += ' ' + el.title;
+                if (el.alt) rowAttrsText += ' ' + el.alt;
+                for (let i = 0; i < el.attributes.length; i++) {
+                    const a = el.attributes[i];
+                    if (a.name.startsWith('data-') || a.name.includes('tip') || a.name.includes('pop') || a.name.includes('title')) {
+                        rowAttrsText += ' ' + a.value;
+                    }
+                }
+            });
+
+            const cellsToCheck = [tds[0 + offset], tds[1 + offset], tds[2 + offset], tds[3 + offset], tds[4 + offset]];
+            if (tds.length > 6 + offset) cellsToCheck.push(tds[6 + offset]);
+            if (tds.length > 7 + offset) cellsToCheck.push(tds[7 + offset]);
+            const textWithoutDelivery = cellsToCheck.map(td => td ? td.textContent : '').join(' ') + ' ' + popupText + ' ' + rowAttrsText;
+
+            const isTextPika = onkoPikatilaus(textWithoutDelivery);
             const isCachedExtra = tilausNumero && sessionStorage.getItem('ai_extra_' + tilausNumero) === '1';
             const isAlreadyPika = row.dataset.isPika === '1';
-            const isRowExtra = EXTRA_REGEX.test(row.textContent || '');
+            const isRowExtra = onkoPikatilaus(row.textContent || '') || onkoPikatilaus(row.innerHTML || '');
 
             // Parsitaan aikaleima
             const { ts, line1, line2 } = parseValmisTimestamp(valmisCell);
