@@ -769,82 +769,7 @@
             }
         } catch (e) {}
 
-        // 1. Jos rivillä on suoraan "Näytä" -lomake tai painike (Pupesoft lahetteen_tulostusjono.php)
-        if (optionalRow) {
-            try {
-                const forms = Array.from(optionalRow.querySelectorAll('form'));
-                const naytaForm = forms.find(f => {
-                    const txt = (f.textContent || '') + (f.innerHTML || '');
-                    return txt.includes('Näytä') || txt.includes('NAYTATILAUS');
-                }) || forms[0];
-
-                if (naytaForm) {
-                    const params = new URLSearchParams();
-                    const fd = new FormData(naytaForm);
-                    for (const [k, v] of fd.entries()) {
-                        params.append(k, v);
-                    }
-                    if (!params.get('tee2')) params.set('tee2', 'NAYTATILAUS');
-                    if (!params.get('tunnus')) params.set('tunnus', tilausNumero);
-
-                    const formAction = naytaForm.getAttribute('action') || window.location.pathname || 'lahetteen_tulostusjono.php';
-                    const res = await fetch(formAction, {
-                        method: (naytaForm.method || 'POST').toUpperCase(),
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: params.toString(),
-                        credentials: 'include'
-                    });
-
-                    if (res.ok) {
-                        const text = await res.text();
-                        if (text.includes('Tilausrivit') || text.includes('Toimitusosoite') || text.includes('keraysrivi') || text.includes('maintable')) {
-                            console.log(`[Pupe-Helper] Tilaus #${tilausNumero} noudettiin rivin Näytä-lomakkeella!`);
-                            return text;
-                        }
-                    }
-                }
-            } catch (err) {
-                console.warn('[Pupe-Helper] Virhe rivin lomakehaussa:', err);
-            }
-        }
-
-        // 2. NAYTATILAUS POST lahetteen_tulostusjono.php nykyisen sivun lomakekentillä
-        try {
-            const baseParams = new URLSearchParams();
-            const mainForm = document.querySelector('form[action*="tulostusjono"], form#valinnat, form[name="valinnat"]') || document.forms[0];
-            if (mainForm) {
-                try {
-                    const mfd = new FormData(mainForm);
-                    for (const [k, v] of mfd.entries()) {
-                        if (!['tee2', 'tee', 'tunnus', 'otunnus'].includes(k)) {
-                            baseParams.append(k, v);
-                        }
-                    }
-                } catch (e) {}
-            }
-            baseParams.set('tee2', 'NAYTATILAUS');
-            baseParams.set('tunnus', tilausNumero);
-
-            const postUrl = window.location.pathname || '/tilauskasittely/lahetteen_tulostusjono.php';
-            const resPost = await fetch(postUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: baseParams.toString(),
-                credentials: 'include'
-            });
-
-            if (resPost.ok) {
-                const textPost = await resPost.text();
-                if (textPost.includes('Tilausrivit') || textPost.includes('Toimitusosoite') || textPost.includes('keraysrivi')) {
-                    console.log(`[Pupe-Helper] Tilaus #${tilausNumero} noudettiin tulostusjonon POST-haulla!`);
-                    return textPost;
-                }
-            }
-        } catch (err) {
-            console.warn('[Pupe-Helper] Virhe tulostusjonon POST-haussa:', err);
-        }
-
-        // 3. tulostakopio.php (Pupesoftin tilaus- ja lähetetuloste)
+        // 1. VAIN KUN KÄYTTÄJÄ KLIKKAA "Laske rahti": Haetaan tilauskopio tulostakopio.php:stä (vain luku, ei koskaan muuta tilauksen tilaa!)
         try {
             const resKopio = await fetch(`/tilauskasittely/tulostakopio.php?otunnus=${tilausNumero}&toim=LAHETE&tee=NAYTATILAUS`, {
                 credentials: 'include'
@@ -860,22 +785,6 @@
             console.warn('[Pupe-Helper] tulostakopio.php haku epäonnistui:', err);
         }
 
-        // 4. keraa.php (keräilysivu)
-        try {
-            const resKeraa = await fetch(`/tilauskasittely/keraa.php?id=${tilausNumero}&toim=`, {
-                credentials: 'include'
-            });
-            if (resKeraa.ok) {
-                const textKeraa = await resKeraa.text();
-                if (textKeraa.includes('maintable') || textKeraa.includes('keraysrivi') || textKeraa.includes('info_table')) {
-                    console.log(`[Pupe-Helper] Tilaus #${tilausNumero} noudettiin keraa.php:stä!`);
-                    return textKeraa;
-                }
-            }
-        } catch (err) {
-            console.warn('[Pupe-Helper] keraa.php haku epäonnistui:', err);
-        }
-
         return '';
     }
 
@@ -884,7 +793,7 @@
     async function tarkistaExtraDeliveryCostTaustalla(dataRows, tbody, summaryRow) {
         let uusiaLoytyi = false;
 
-        // 1. Tarkistetaan ensin, onko sivulle jo valmiiksi auki jokin tilaus (esim. Näytä-painikkeella klikattu)
+        // 1. Tarkistetaan, onko sivulle avattu jokin tilaus Näytä-painikkeella (täysin passiivinen luku, 0 pyyntöä!)
         try {
             const pageBodyText = (document.body.innerText || document.body.textContent || '') + ' ' + (document.body.innerHTML || '');
             const openOrderMatch = pageBodyText.match(/Tilaus[:\s]+(\d{5,8})/i) || pageBodyText.match(/Tilausnumero[:\s]+(\d{5,8})/i);
@@ -904,7 +813,7 @@
             }
         } catch (e) {}
 
-        // 2. Käydään läpi kaikki jonon rivit
+        // 2. Käydään läpi jonon rivit VAIN paikallisesti (ei koskaan taustalähetyksiä lomakkeisiin!)
         for (const row of dataRows) {
             const tilausNumero = row.dataset.tilausNumero || (row.querySelector('.ai-status-td') ? row.querySelectorAll('td')[2] : row.querySelectorAll('td')[1])?.textContent.trim().match(/\d+/)?.[0];
             if (!tilausNumero) continue;
@@ -920,11 +829,7 @@
                 continue;
             }
 
-            // Vältetään saman tilauksen toistuva haku saman sivulatauksen aikana
-            if (skannatutTallaSivulla.has(tilausNumero)) continue;
-            skannatutTallaSivulla.add(tilausNumero);
-
-            // Tarkistetaan ensin suoraan rivin sisällöstä, mukaan lukien title/alt/tooltip -lisätiedot
+            // Tarkistetaan suoraan rivin sisällöstä, mukaan lukien title/alt/tooltip -lisätiedot
             let rowCheckText = row.textContent || '';
             row.querySelectorAll('*').forEach(el => {
                 if (el.title) rowCheckText += ' ' + el.title;
@@ -938,25 +843,6 @@
                 asetaRivinStatus(row, '<span style="background:#dc2626; color:#ffffff; font-size:9pt; font-weight:bold; padding:2px 7px; border-radius:3px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.15);">🔥 PIKATILAUS</span>', '#fde8e8', '#e02424');
                 uusiaLoytyi = true;
                 jarjestaRivit(dataRows, tbody, summaryRow);
-                continue;
-            }
-
-            // Haetaan tilauksen sisältö taustalla (sisältää tilauskommentit, lisätiedot ja tilausrivit)
-            try {
-                const htmlText = await fetchOrderHtml(tilausNumero, row);
-                const onPika = onkoPikatilaus(htmlText);
-                console.log(`[Pupe-Helper] Tilaus #${tilausNumero} taustaskannattu. Pikatilaus: ${onPika}`);
-
-                if (onPika) {
-                    sessionStorage.setItem('ai_extra_' + tilausNumero, '1');
-                    row.dataset.isPika = '1';
-                    row.dataset.colorCategory = 'red';
-                    asetaRivinStatus(row, '<span style="background:#dc2626; color:#ffffff; font-size:9pt; font-weight:bold; padding:2px 7px; border-radius:3px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.15);">🔥 PIKATILAUS</span>', '#fde8e8', '#e02424');
-                    uusiaLoytyi = true;
-                    jarjestaRivit(dataRows, tbody, summaryRow);
-                }
-            } catch (err) {
-                console.error('[Pupe-Helper] Virhe taustahaussa:', tilausNumero, err);
             }
         }
 
