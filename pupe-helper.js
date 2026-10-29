@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      4.4
+// @version      4.5
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -144,6 +144,11 @@
         }
 
         window.addEventListener('message', async (event) => {
+            // Jos Rahtilaskurissa on sisäänrakennettu natiivi vastaanotin, annetaan sen hoitaa tuonti
+            if (window.__RAHTILASKURI_NATIVE_IMPORT__) {
+                return;
+            }
+
             if (event.data && event.data.type === 'CHECK_RAHTILASKURI_READY') {
                 if (event.source && typeof event.source.postMessage === 'function') {
                     try {
@@ -154,6 +159,7 @@
             }
 
             if (event.data && event.data.type === 'IMPORT_PUPESOFT_ORDERS' && Array.isArray(event.data.orders)) {
+                if (window.__RAHTILASKURI_NATIVE_IMPORT__) return;
                 if (isHandlingImport) return;
                 isHandlingImport = true;
 
@@ -507,18 +513,47 @@
         setTimeout(alustaKeraaRivit, 300);
         setTimeout(alustaKeraaRivit, 1000);
 
-        // Pikatilaus-tunniste keräilysivun yläreunaan jos tuotteissa on EXTRA DELIVERY COST tai pika-teksti
+        // Pikatilaus-tunniste ja Laske rahti -painike keräilysivun yläreunaan
         const keraaText = document.body.textContent || '';
-        if (/\b(extra[\s_-]*delivery(?:[\s_-]*cost)?|pikarahti|pikatoimitus|pikatilaus|rush order|urgent order)\b/i.test(keraaText)) {
-            let pikaBadge = document.getElementById('ai-keraa-pika-badge');
-            if (!pikaBadge) {
-                const headTitle = document.querySelector('font.head') || document.querySelector('.head') || document.querySelector('h1');
-                if (headTitle) {
+        const headTitle = document.querySelector('font.head') || document.querySelector('.head') || document.querySelector('h1');
+
+        if (headTitle) {
+            // 1. Pikatilaus-badge
+            if (/\b(extra[\s_-]*delivery(?:[\s_-]*cost)?|pikarahti|pikatoimitus|pikatilaus|rush order|urgent order)\b/i.test(keraaText)) {
+                let pikaBadge = document.getElementById('ai-keraa-pika-badge');
+                if (!pikaBadge) {
                     pikaBadge = document.createElement('span');
                     pikaBadge.id = 'ai-keraa-pika-badge';
                     pikaBadge.innerHTML = '🔥 PIKATILAUS';
                     pikaBadge.style.cssText = 'background:#dc2626; color:#ffffff; font-size:11pt; font-weight:800; padding:3px 10px; border-radius:5px; margin-left:14px; vertical-align:middle; display:inline-block; box-shadow:0 2px 4px rgba(220,38,38,0.3);';
                     headTitle.appendChild(pikaBadge);
+                }
+            }
+
+            // 2. Laske rahti -painike suoraan keräyssivulle
+            const urlParams = new URLSearchParams(window.location.search);
+            const keraaTilausNro = urlParams.get('id') || (() => {
+                const m = document.body.textContent.match(/Tilaus[:\s]+(\d{5,8})/i);
+                return m ? m[1] : '';
+            })();
+
+            if (keraaTilausNro) {
+                let rahtiKeraaBtn = document.getElementById('ai-keraa-rahti-btn');
+                if (!rahtiKeraaBtn) {
+                    rahtiKeraaBtn = document.createElement('button');
+                    rahtiKeraaBtn.id = 'ai-keraa-rahti-btn';
+                    rahtiKeraaBtn.type = 'button';
+                    rahtiKeraaBtn.innerHTML = '📦 Laske rahti';
+                    rahtiKeraaBtn.title = 'Avaa Rahtilaskuri ja siirrä tämän tilauksen tiedot';
+                    rahtiKeraaBtn.style.cssText = 'background:#0284c7; color:#ffffff; font-size:10pt; font-weight:800; padding:4px 12px; border-radius:6px; border:none; margin-left:14px; vertical-align:middle; display:inline-block; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2); transition:all 0.15s ease;';
+                    rahtiKeraaBtn.onmouseover = () => { rahtiKeraaBtn.style.background = '#0369a1'; };
+                    rahtiKeraaBtn.onmouseout = () => { rahtiKeraaBtn.style.background = '#0284c7'; };
+                    rahtiKeraaBtn.onclick = (e) => {
+                        e.preventDefault();
+                        showToast(`📦 Noudetaan tilaus #${keraaTilausNro} ja avataan Rahtilaskuri...`);
+                        lahetaTilauksetRahtilaskuriin([{ tilausNumero: keraaTilausNro, customerName: '', customerKey: '' }]);
+                    };
+                    headTitle.appendChild(rahtiKeraaBtn);
                 }
             }
         }
@@ -699,6 +734,20 @@
     }
 
     async function fetchOrderHtml(tilausNumero) {
+        // 0. Jos ollaan jo keraa.php-sivulla ja katsellaan kyseistä tilausta, käytetään suoraan nykyistä sivua!
+        try {
+            if (location.pathname.includes('keraa.php')) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentId = urlParams.get('id');
+                if (currentId === String(tilausNumero) || !tilausNumero) {
+                    const pageHtml = document.documentElement.outerHTML;
+                    if (pageHtml.includes('maintable') || pageHtml.includes('keraysrivi')) {
+                        return pageHtml;
+                    }
+                }
+            }
+        } catch (e) {}
+
         // 1. Ensisijainen: Haetaan keraa.php, joka sisältää varmuudella kaikki tuoterivit, määrät ja toimitusosoitteen
         try {
             const res = await fetch(`/tilauskasittely/keraa.php?id=${tilausNumero}&toim=`, {
@@ -922,13 +971,36 @@
         // 3. Lähetetään postMessage Rahtilaskurin ikkunaan ja odotetaan kuittausta
         let isDone = false;
         let attempts = 0;
+        let timer = null;
 
         function ackListener(e) {
-            if (e.data && (e.data.type === 'IMPORT_PUPESOFT_SUCCESS' || e.data.type === 'IMPORT_PUPESOFT_ACK')) {
+            if (!e.data) return;
+
+            // Kun Rahtilaskuri ilmoittaa olevansa valmis, lähetetään tilaukset heti
+            if (e.data.type === 'RAHTILASKURI_READY') {
+                sendPayload();
+                return;
+            }
+
+            if (e.data.type === 'IMPORT_PUPESOFT_ACK') {
+                if (statusCallback) statusCallback('Käsitellään ja pakataan tilauksia Rahtilaskurissa...');
+            }
+
+            if (e.data.type === 'IMPORT_PUPESOFT_SUCCESS') {
                 isDone = true;
+                if (timer) clearInterval(timer);
                 window.removeEventListener('message', ackListener);
-                if (statusCallback) statusCallback('✅ Valmis! Tilaukset yhdistetty Rahtilaskurissa.');
-                showToast(`✅ ${ordersData.length} tilaus(ta) siirretty onnistuneesti Rahtilaskuriin!`);
+                const rivitTeksti = e.data.linesCount ? ` (${e.data.linesCount} tuoteriviä)` : '';
+                if (statusCallback) statusCallback(`✅ Valmis! Tilaukset yhdistetty Rahtilaskurissa${rivitTeksti}.`);
+                showToast(`✅ ${ordersData.length} tilaus(ta)${rivitTeksti} siirretty onnistuneesti Rahtilaskuriin!`);
+            }
+
+            if (e.data.type === 'IMPORT_PUPESOFT_EMPTY') {
+                isDone = true;
+                if (timer) clearInterval(timer);
+                window.removeEventListener('message', ackListener);
+                if (statusCallback) statusCallback('⚠️ Rahtilaskuri: Tilauksesta ei löytynyt toimitettavia tuotteita.', true);
+                showToast('⚠️ Rahtilaskuri: Tilauksesta ei löytynyt toimitettavia tuotteita.', true);
             }
         }
         window.addEventListener('message', ackListener);
@@ -940,14 +1012,14 @@
             } catch {}
         };
 
-        const timer = setInterval(() => {
+        timer = setInterval(() => {
             attempts++;
-            if (isDone || attempts > 30 || !rahtiWin || rahtiWin.closed) {
-                clearInterval(timer);
+            if (isDone || attempts > 40 || !rahtiWin || rahtiWin.closed) {
+                if (timer) clearInterval(timer);
                 window.removeEventListener('message', ackListener);
 
                 if (isDone) {
-                    if (statusCallback) statusCallback('✅ Valmis! Tilaukset yhdistetty Rahtilaskurissa.');
+                    // Jo onnistuneesti kuitattu
                 } else if (!rahtiWin || rahtiWin.closed) {
                     if (statusCallback) statusCallback('⚠️ Rahtilaskurin välilehti suljettiin.', true);
                 } else {
