@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper (Cloud Loader)
 // @namespace    https://audioimport.ahkio.com/
-// @version      1.2
+// @version      1.3
 // @description  Lataa ja suorittaa automaattisesti aina uusimman version pilvestä
 // @author       Audioimport Oy
 // @match        https://audioimport.ahkio.com/*
