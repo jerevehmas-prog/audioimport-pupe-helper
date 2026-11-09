@@ -3931,6 +3931,7 @@ async function fetchProductLocations(tuoteno) {
     // NÄKYMÄ 3: TULOSTA KERÄYSLISTA (lahetteen_tulostusjono.php)
     // =========================================================================
     function alustaTulostusjonoKuuntelu() {
+        const { isTulostusjonoSivu } = getPageType();
         if (!isTulostusjonoSivu) return;
 
         // Etsitään olemassa olevat rivikohtaiset Tulosta-painikkeet
@@ -4987,8 +4988,10 @@ async function fetchProductLocations(tuoteno) {
     } else if (isPupesoft) {
         const { isTulostusjonoSivu, isKeraaSivu, isKeraaYksittainenSivu, isKeraaListaSivu } = getPageType();
 
-        if (isTulostusjonoSivu) {
-            alustaTulostusjono();
+        if (isTulostusjonoSivu || document.getElementById('kerayslistat_table')) {
+            jarjestaKerayslista();
+            setTimeout(jarjestaKerayslista, 300);
+            setTimeout(jarjestaKerayslista, 800);
             alustaTulostusjonoKuuntelu();
         }
 
