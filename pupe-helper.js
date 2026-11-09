@@ -9,6 +9,8 @@
 // @match        http://*.ahkio.com/*
 // @match        https://rahtilaskuri.audioimport.workers.dev/*
 // @match        http://localhost:5173/*
+// @updateURL    https://raw.githubusercontent.com/jerevehmas-prog/audioimport-pupe-helper/main/pupe-helper.js
+// @downloadURL  https://raw.githubusercontent.com/jerevehmas-prog/audioimport-pupe-helper/main/pupe-helper.js
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==
