@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      5.0
+// @version      5.1
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -248,13 +248,24 @@
 
     // Lisätiedoissa / kommenteissa oleva pikatilausmerkintä suomeksi tai englanniksi
     // Huom: /i tekee hausta kirjainkoosta riippumattoman (pikatilaus, Pikatilaus, PIKATILAUS jne.)
-    const PIKA_COMMENT_REGEX = /\b(?:pikatilaus\w*|pika[\s_\-]+tilaus\w*|pikatilauksena|pikatoimitus\w*|pika[\s_\-]+toimitus\w*|pikarahti\w*|pika[\s_\-]+rahti\w*|pikakeräys\w*|pika[\s_\-]+keräys\w*|pikana|kiireellinen(?:[\s_\-]+tilaus\w*)?|rush[\s_\-]*order\w*|rush[\s_\-]*delivery|rush[\s_\-]*shipping|rush|urgent[\s_\-]*order\w*|urgent[\s_\-]*delivery|urgent[\s_\-]*shipping|urgent|express[\s_\-]*order\w*|express[\s_\-]*delivery|express[\s_\-]*shipping|express|priority[\s_\-]*order\w*|priority[\s_\-]*delivery|high[\s_\-]*priority|priority|fast[\s_\-]*order\w*|fast[\s_\-]*delivery|fast[\s_\-]*shipping|quick[\s_\-]*order\w*|quick[\s_\-]*delivery|quick[\s_\-]*shipping|expedited(?:[\s_\-]*order\w*|[\s_\-]*delivery|[\s_\-]*shipping)?|same[\s_\-]*day|sameday|asap)\b/i;
+    // Vaatii AINA tilaus/toimitus/rahti/keräys -sanayhdistelmän (EI irrallisia sanoja kuten "express" tai "priority",
+    // jotka esiintyvät toimitustapojen nimissä ja aiheuttavat vääriä hälytyksiä).
+    const PIKA_COMMENT_REGEX = /\b(?:pikatilaus\w*|pika[\s_\-]+tilaus\w*|pikatilauksena|pikatoimitus\w*|pika[\s_\-]+toimitus\w*|pikarahti\w*|pika[\s_\-]+rahti\w*|pikakeräys\w*|pika[\s_\-]+keräys\w*|kiireellinen[\s_\-]+tilaus\w*|rush[\s_\-]*order\w*|rush[\s_\-]*delivery|rush[\s_\-]*shipping|urgent[\s_\-]*order\w*|urgent[\s_\-]*delivery|urgent[\s_\-]*shipping|express[\s_\-]*order\w*|express[\s_\-]*delivery|express[\s_\-]*shipping|priority[\s_\-]*order\w*|priority[\s_\-]*delivery|fast[\s_\-]*order\w*|fast[\s_\-]*delivery|quick[\s_\-]*order\w*|quick[\s_\-]*delivery|expedited[\s_\-]*order\w*|expedited[\s_\-]*delivery|same[\s_\-]*day[\s_\-]*order\w*|same[\s_\-]*day[\s_\-]*delivery)\b/i;
 
     // Ei-fyysiset palvelu- ja rahtirivit, joita ei pakata Rahtilaskurin kolleihin
     const NON_PHYSICAL_SERVICE_REGEX = /^(?:extra[\s_\-]*delivery(?:[\s_\-]*cost\w*)?|express[\s_\-]*delivery(?:[\s_\-]*cost\w*)?|pikarahti\w*|pikatoimitus\w*|pikatilaus\w*|rahti|rahtikulu\w*|rahtimaksu\w*|toimituskulu\w*|toimitusmaksu\w*|laskutuslisä\w*|pientoimituslisä\w*|käsittelykulu\w*|lavaveloitus\w*|huolintakulu\w*|freight(?:\s*(?:cost|charge|fee))?|shipping(?:\s*(?:cost|charge|fee))?|delivery(?:\s*(?:cost|charge|fee))?|handling(?:\s*fee)?)$/i;
 
-    const PIKA_STORAGE_KEY = 'ai_pika_orders_v5';
-    const PIKA_TTL_MS = 14 * 24 * 60 * 60 * 1000; // 14 vrk
+    // Siivotaan vanhat väärät tallennukset selaimesta
+    try {
+        localStorage.removeItem('ai_pika_orders_v5');
+        localStorage.removeItem('ai_pika_orders_v4');
+        localStorage.removeItem('ai_pika_orders_v3');
+        localStorage.removeItem('ai_pika_orders_v2');
+        localStorage.removeItem('ai_pika_orders');
+    } catch (e) {}
+
+    const PIKA_STORAGE_KEY = 'ai_pika_orders_v5_1';
+    const PIKA_TTL_MS = 24 * 60 * 60 * 1000; // 24 tuntia riittää keräysjonolle
 
     function loadPikaStore() {
         try {
@@ -425,8 +436,15 @@
 
             // Poistetaan kaikki sivun ulkopuoliset häiriölähteet
             doc.querySelectorAll(
-                'script, style, noscript, #kerayslistat_table, form[name="find"], form[name="sanakirjaform"], select[name="tutoimtapa"], select[name^="filtteri_"], .popup'
+                'script, style, noscript, iframe, #kerayslistat_table, form[name="find"], form[name="sanakirjaform"], select[name="tutoimtapa"], select[name^="filtteri_"], .popup, [class*="popup"]'
             ).forEach(el => el.remove());
+
+            // Poistetaan tulostusjonon hakusuodattimien ja massatulostuksen isäntätaulukot
+            doc.querySelectorAll('table').forEach(tbl => {
+                if (tbl.querySelector('form[name="find"], select[name="valittu_tulostin"], input[name="tulostukseen_kaikki"], select[name="tuvarasto"], button[type="submit"]')) {
+                    tbl.remove();
+                }
+            });
 
             // 1. Tarkistetaan keraa.php (#maintable)
             const mainTable = doc.getElementById('maintable');
@@ -720,6 +738,13 @@
         doc.querySelectorAll(
             'script, style, noscript, iframe, #kerayslistat_table, form[name="find"], form[name="sanakirjaform"], .popup, [class*="popup"], tfoot'
         ).forEach(el => el.remove());
+
+        // Poistetaan tulostusjonon hakusuodattimien ja massatulostuksen isäntätaulukot
+        doc.querySelectorAll('table').forEach(tbl => {
+            if (tbl.querySelector('form[name="find"], select[name="valittu_tulostin"], input[name="tulostukseen_kaikki"], select[name="tuvarasto"]')) {
+                tbl.remove();
+            }
+        });
 
         // 1. Varmistetaan tilausnumero
         let resolvedOrderNo = String(tilausNumero || '').trim();
@@ -2024,18 +2049,19 @@
                 row.dataset.tilausNumero = tilausNumero;
             }
 
-            // Asiakkaan tiedot yhdistämistä varten
+            // Asiakkaan tiedot yhdistämistä varten: erotellaan yritystunnus ja tarkka toimipaikka/asiakasnimi
             let asiakasNimi = '';
             let customerKey = '';
             if (asiakasTd) {
                 const parts = asiakasTd.innerHTML.split(/<br\s*\/?>|\n/i)
                     .map(s => s.replace(/<[^>]+>/g, '').trim())
                     .filter(Boolean);
-                const ytunnus = parts[0] || '';
-                asiakasNimi = parts.length > 1 ? parts[1] : parts[0] || '';
-                const cleanY = ytunnus.toUpperCase().replace(/\s+/g, '');
-                const cleanN = asiakasNimi.toUpperCase().replace(/\s+/g, '');
-                customerKey = cleanY.length >= 3 ? cleanY : cleanN;
+                const ytunnus = parts.length > 1 ? parts[0] : '';
+                const nameParts = parts.length > 1 ? parts.slice(1) : parts;
+                asiakasNimi = nameParts.join(' ').replace(/\s+/g, ' ').trim();
+                const cleanY = ytunnus.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const cleanN = asiakasNimi.toUpperCase().replace(/\s+/g, ' ').trim();
+                customerKey = cleanN ? (cleanY ? `${cleanY}___${cleanN}` : cleanN) : (cleanY || '');
             }
 
             // Toimitustapa ja DPD-tunnistus
@@ -2074,6 +2100,7 @@
                 row.dataset.colorCategory = 'red';
                 asetaRivinStatus(row, PIKA_BADGE_HTML, '#fde8e8', '#e02424');
             } else {
+                row.dataset.isPika = '0';
                 asetaNormaaliAikaStatus(row, now);
             }
 
