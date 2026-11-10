@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      6.0
+// @version      6.1
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, varastopaikkasiirrot, työnjako ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -3294,15 +3294,23 @@ async function fetchProductLocations(tuoteno) {
     // =========================================================================
     // SYNKRONOINTI & TALLENNUSTILA (localStorage + BroadcastChannel)
     // =========================================================================
-    const STORAGE_KEY_CLAIMS = 'ai_pupe_picking_claims_v2';
+    const STORAGE_KEY_CLAIMS = 'ai_pupe_picking_claims_v4';
     const STORAGE_KEY_USER = 'ai_pupe_current_picker_name';
     const SYNC_CHANNEL = 'ai_pupe_tyonjako_sync';
+
+    // Siivotaan vanhat mahdollisesti virheelliset välimuistitiedot (esim. NAYTATILAUS-osumat)
+    try {
+        localStorage.removeItem('ai_pupe_picking_claims_v1');
+        localStorage.removeItem('ai_pupe_picking_claims_v2');
+        localStorage.removeItem('ai_pupe_picking_claims_v3');
+    } catch (e) {}
 
     // Käyttäjäkirjasto Pupesoftin käyttäjätunnuksista koko nimiin
     const GLOBAL_USER_MAP = new Map([
         ['varasto', 'Varasto'],
         ['jere', 'Jere Vehmas'],
         ['aleksi', 'Aleksi Judin'],
+        ['christer', 'Christer'],
         ['toni', 'Toni Palosaari'],
         ['eetu', 'Eetu Kinnunen'],
         ['girts', 'Girts Pavlins'],
@@ -3393,8 +3401,7 @@ async function fetchProductLocations(tuoteno) {
         } catch (e) {}
     }
 
-    // Tunnistetaan kirjautunut henkilökohtainen kerääjä.
-    // HUOM: Palauttaa vain oikean henkilön nimen (esim. "Jere Vehmas"), ei koskaan yleistunnusta "Varasto"!
+    // Tunnistetaan kirjautunut käyttäjä.
     function getPickerName() {
         // 1. Luetaan Pupesoftin omasta kerääjävalikosta (keraa.php:n <select id="keraajalist">)
         const sel = document.getElementById('keraajalist');
@@ -3411,23 +3418,21 @@ async function fetchProductLocations(tuoteno) {
 
         // 2. Etsitään Pupesoftin yläpalkista tai kehyksistä (top.php) kirjautuneen käyttäjän nimi
         try {
-            const topDoc = window.top?.document;
+            const topDoc = window.top?.document || document;
             if (topDoc) {
                 const topText = topDoc.body?.innerText || '';
                 const match = topText.match(/(?:Käyttäjä|Kirjautunut|User):\s*([A-Za-zÅÄÖåäö\s]+?)(?:\s*\(|\s*\n|\s*\||$)/i);
                 if (match && match[1] && match[1].trim().length > 2) {
                     const detectedName = match[1].trim();
-                    if (detectedName.toLowerCase() !== 'varasto') {
-                        localStorage.setItem(STORAGE_KEY_USER, detectedName);
-                        return detectedName;
-                    }
+                    localStorage.setItem(STORAGE_KEY_USER, detectedName);
+                    return detectedName;
                 }
 
-                // Tunnistetaan Audioimportin yläkulman rakenne: "Oy Audioimport ... \n Jere Vehmas"
-                const nameMatch = topText.match(/Audioimport[^\n\r]*[\r\n]+\s*([A-ZÅÄÖ][a-zåäö]+\s+[A-ZÅÄÖ][a-zåäö]+)/);
+                // Tunnistetaan Audioimportin yläkulman rakenne: "Oy Audioimport ... \n <Käyttäjän Nimi>"
+                const nameMatch = topText.match(/Audioimport[^\n\r]*[\r\n]+\s*([A-ZÅÄÖ][A-Za-zÅÄÖåäö\s\-]{1,35})/);
                 if (nameMatch && nameMatch[1]) {
-                    const detectedName = nameMatch[1].trim();
-                    if (detectedName.toLowerCase() !== 'varasto') {
+                    const detectedName = nameMatch[1].split(/[\r\n]/)[0].trim();
+                    if (detectedName) {
                         localStorage.setItem(STORAGE_KEY_USER, detectedName);
                         return detectedName;
                     }
@@ -3436,9 +3441,35 @@ async function fetchProductLocations(tuoteno) {
         } catch (e) {}
 
         const saved = localStorage.getItem(STORAGE_KEY_USER);
-        if (saved && saved.toLowerCase() !== 'varasto') return saved;
+        if (saved) return saved;
 
-        return 'Jere Vehmas';
+        return 'Varasto';
+    }
+
+    // Poimii keraa.php-rivin 4. sarakkeesta ("Laadittu / Valmis / Tulostettu") 3. rivin Tulostettu-aikaleiman
+    function parseKeraaRowTulostettuTimestamp(cell) {
+        if (!cell) return 0;
+        const lines = cell.innerHTML
+            .split(/<br\s*\/?>|\n/i)
+            .map(s => s.replace(/<[^>]+>/g, '').trim())
+            .filter(Boolean);
+        if (lines.length < 3) return 0;
+
+        let day = 0, mon = 0, yr = 0;
+        for (let i = 0; i < 3; i++) {
+            const dm = lines[i].match(/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+            if (dm) {
+                day = parseInt(dm[1], 10);
+                mon = parseInt(dm[2], 10);
+                yr = parseInt(dm[3], 10);
+                if (yr < 100) yr += 2000;
+            }
+        }
+        const tm = lines[2].match(/(\d{1,2}):(\d{2})/);
+        if (!day || !mon || !yr || !tm) return 0;
+        const hr = parseInt(tm[1], 10);
+        const mn = parseInt(tm[2], 10);
+        return new Date(yr, mon - 1, day, hr, mn, 0).getTime();
     }
 
     function claimOrder(orderNo, picker = null, action = 'kerayksessa') {
@@ -3483,6 +3514,9 @@ async function fetchProductLocations(tuoteno) {
     // NÄKYMÄ 1: KERÄÄ-OHJELMAN TILAUSLISTA (keraa.php)
     // =========================================================================
     function paivitaKeraaTilauslista() {
+        const { isKeraaListaSivu } = getPageType();
+        if (!isKeraaListaSivu) return;
+
         const claims = getClaims();
         const currentPicker = getPickerName();
 
@@ -3604,7 +3638,16 @@ async function fetchProductLocations(tuoteno) {
                 });
             }
 
-            const claim = claims[orderNo];
+            const rowTulostettuTs = parseKeraaRowTulostettuTimestamp(cells[3]);
+            let claim = claims[orderNo];
+
+            // Jos välimuistissa oleva tulostusmerkintä on vanhempi kuin Pupesoftin oma Tulostettu-aikaleima,
+            // poistetaan vanhentunut merkintä ja haetaan todellinen tulostaja suorituskykylokista!
+            if (claim && claim.action === 'tulostettu' && rowTulostettuTs > 0 && (claim.timestamp + 60000) < rowTulostettuTs) {
+                delete claims[orderNo];
+                saveClaims(claims);
+                claim = null;
+            }
 
             // Jos tilausta ei vielä löydy muistista, lisätään se kohdennettuun lokihakuun
             if (!claim) {
@@ -3750,9 +3793,12 @@ async function fetchProductLocations(tuoteno) {
                         const parsed = parsiSuorituskykylokiDoc(doc);
                         if (parsed[orderNo]) {
                             const claims = getClaims();
-                            claims[orderNo] = parsed[orderNo];
-                            saveClaims(claims);
-                            foundCount++;
+                            const existing = claims[orderNo];
+                            if (!existing || existing.action === 'tulostettu') {
+                                claims[orderNo] = parsed[orderNo];
+                                saveClaims(claims);
+                                foundCount++;
+                            }
                         }
                     }
                 }));
@@ -3779,7 +3825,8 @@ async function fetchProductLocations(tuoteno) {
     let isReleasingOrder = false;
 
     function paivitaKeraaSivuClaim() {
-        if (isReleasingOrder) return;
+        const { isKeraaYksittainenSivu } = getPageType();
+        if (!isKeraaYksittainenSivu || isReleasingOrder) return;
 
         const urlParams = new URLSearchParams(window.location.search);
         const orderNo = (
@@ -3994,80 +4041,182 @@ async function fetchProductLocations(tuoteno) {
         const rows = Array.from(doc.querySelectorAll('tr'));
 
         rows.forEach(tr => {
-            const text = tr.textContent || '';
-            if (!/tulost/i.test(text)) return;
+            const directTds = Array.from(tr.children).filter(c => c.tagName === 'TD');
+            if (directTds.length < 3) return;
 
-            // Puretaan URL-koodatut pätkät
-            let decodedText = text;
+            // 1. Varmistetaan, että tämä on suorituskykylokin päärivi (solussa 0 tai 1 on aikaleima pp.kk.vvvv tt:mm).
+            // Näin sisätaulukon parametririvit (esim. <tr><td>tulostukseen</td><td>0</td><td>497110</td></tr>)
+            // eivät koskaan sekoitu pääriveihin!
+            let ts = 0;
+            let dateCellIndex = -1;
+            for (let i = 0; i < Math.min(directTds.length, 2); i++) {
+                const m = directTds[i].textContent.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})/);
+                if (m) {
+                    const [, day, mon, yr, hr, mn] = m;
+                    ts = new Date(Number(yr), Number(mon) - 1, Number(day), Number(hr), Number(mn), 0).getTime();
+                    dateCellIndex = i;
+                    break;
+                }
+            }
+            if (!ts || dateCellIndex === -1) return;
+
+            const paramTd = directTds[directTds.length - 1];
+            // Huom: DOMin .textContent liimaa vierekkäiset <td>0</td><td>497110</td> yhteen muotoon "0497110"!
+            // Siksi poimitaan kaikkien sisäsolujen tekstit välilyönnillä erotettuna.
+            const allParamCells = Array.from(paramTd.querySelectorAll('td'));
+            const paramRawText = allParamCells.length > 0
+                ? allParamCells.map(c => {
+                    // Jos solun sisällä on vielä oma table, ei oteta sen yhdistettyä tekstiä vaan vain lehtisolut
+                    if (c.querySelector('td')) return '';
+                    return c.textContent.trim();
+                }).filter(Boolean).join(' ')
+                : (paramTd.textContent || '');
+
+            // Puretaan mahdolliset URL-koodaukset (esim. tulostukseen_kaikki)
+            let decodedParamText = paramRawText;
             try {
-                decodedText = decodeURIComponent(text.replace(/\+/g, ' '));
+                decodedParamText = decodeURIComponent(paramRawText.replace(/\+/g, ' '));
             } catch (e) {
-                decodedText = text;
+                decodedParamText = paramRawText;
             }
 
-            // Etsitään kaikki 49-alkuiset 6-numeroiset tilausnumerot
+            // 2. Kerätään parametrit avain -> arvo -rakenteeseen (sekä sisätaulukosta että tekstistä)
+            const paramMap = new Map();
+            const innerRows = Array.from(paramTd.querySelectorAll('tr'));
+            if (innerRows.length > 0) {
+                innerRows.forEach(pTr => {
+                    const pTds = Array.from(pTr.children).filter(c => c.tagName === 'TD');
+                    if (pTds.length >= 2) {
+                        const k = pTds[0].textContent.trim().toLowerCase();
+                        if (/^\d+$/.test(k)) return; // Ohitetaan sisätaulukon indeksirivit (0 | 497110)
+                        const valTokens = [];
+                        pTds.slice(1).forEach(cell => {
+                            const leafTds = Array.from(cell.querySelectorAll('td')).filter(td => !td.querySelector('td'));
+                            if (leafTds.length > 0) {
+                                leafTds.forEach(lt => valTokens.push(lt.textContent.trim()));
+                            } else {
+                                valTokens.push(cell.textContent.trim());
+                            }
+                        });
+                        const v = valTokens.filter(Boolean).join(' ').trim();
+                        if (k) {
+                            paramMap.set(k, paramMap.has(k) ? (paramMap.get(k) + ' ' + v) : v);
+                        }
+                    }
+                });
+            }
+
+            // Täydennetään myös "avain: arvo" / "avain=arvo" -riveistä siltä varalta että solussa on suoraa tekstiä
+            const rawLines = (paramTd.textContent || '').split(/\r?\n/);
+            rawLines.forEach(line => {
+                const kv = line.match(/^\s*([a-zA-Z0-9_\[\]]+)\s*[:=]\s*(.+?)\s*$/);
+                if (kv) {
+                    const k = kv[1].toLowerCase();
+                    const v = kv[2].trim();
+                    if (!paramMap.has(k)) {
+                        paramMap.set(k, v);
+                    }
+                }
+            });
+
+            const teeVal = (paramMap.get('tee') || '').trim().toUpperCase();
+            const tee2Val = (paramMap.get('tee2') || '').trim().toUpperCase();
+
+            // 3. HYLÄTÄÄN EHDOTTOMASTI NAYTATILAUS-ESIKATSELUT!
+            // Taustaskannerin (fetchSafeNaytaTilausRaw) tai käyttäjän Näytä-napin NAYTATILAUS ei ole koskaan tulostus!
+            if (teeVal === 'NAYTATILAUS' || tee2Val === 'NAYTATILAUS' || /\bNAYTATILAUS\b/i.test(paramRawText)) {
+                return;
+            }
+
+            // 4. VAADITAAN AITO TULOSTUSTAPAHTUMA (tee2=TULOSTA / tee=TULOSTA tai tulostukseen-parametri)
+            const hasTeeTulosta = (
+                tee2Val === 'TULOSTA' ||
+                teeVal === 'TULOSTA' ||
+                /\btee2?\s*[:=]?\s*TULOSTA\b/i.test(paramRawText)
+            );
+            const tulostukseenVal = paramMap.get('tulostukseen') || paramMap.get('tulostukseen[]') || '';
+            const tulostukseenKaikkiVal = paramMap.get('tulostukseen_kaikki') || '';
+            const hasTulostukseen = Boolean(
+                /\b\d{5,8}\b/.test(tulostukseenVal) ||
+                tulostukseenKaikkiVal.trim().length > 0
+            );
+
+            if (!hasTeeTulosta && !hasTulostukseen) {
+                return;
+            }
+
+            // 5. Poimitaan tulostetut tilausnumerot ensisijaisesti tulostukseen / tulostukseen_kaikki -parametreista
             const orderNumbers = new Set();
-            const matches = decodedText.matchAll(/(?:^|[^\d])(49\d{4})(?:[^\d]|$)/g);
-            for (const m of matches) {
-                orderNumbers.add(m[1]);
+
+            if (tulostukseenVal) {
+                for (const m of tulostukseenVal.matchAll(/\b(\d{5,8})\b/g)) {
+                    orderNumbers.add(m[1]);
+                }
             }
 
-            // Fallback: 5-8 numeroiset kokonaisluvut tulostukseen-sanan läheisyydestä
-            if (orderNumbers.size === 0) {
-                const fb = decodedText.match(/tulostukseen[^\d]*(\d{5,8})/i);
-                if (fb) orderNumbers.add(fb[1]);
+            if (tulostukseenKaikkiVal) {
+                let decKaikki = tulostukseenKaikkiVal;
+                try {
+                    decKaikki = decodeURIComponent(tulostukseenKaikkiVal.replace(/\+/g, ' '));
+                } catch (e) {}
+                for (const m of decKaikki.matchAll(/i:(\d{5,8});|\b(49\d{4})\b/g)) {
+                    orderNumbers.add(m[1] || m[2]);
+                }
+            }
+
+            // Jos tee2=TULOSTA mutta tilausnumero on muussa kentässä (esim. tilausnumero, otunnus, tunnus)
+            if (orderNumbers.size === 0 && hasTeeTulosta) {
+                for (const key of ['tilausnumero', 'otunnus', 'tunnus']) {
+                    const v = paramMap.get(key) || '';
+                    for (const m of v.matchAll(/\b(\d{5,8})\b/g)) {
+                        orderNumbers.add(m[1]);
+                    }
+                }
+            }
+
+            // Viimeinen varakeino (vain kun rivi on varmistetusti TULOSTA-rivi)
+            if (orderNumbers.size === 0 && hasTeeTulosta) {
+                for (const m of decodedParamText.matchAll(/\b(49\d{4})\b/g)) {
+                    orderNumbers.add(m[1]);
+                }
+                if (orderNumbers.size === 0) {
+                    const fb = decodedParamText.match(/tulostukseen[^\d]*(\d{5,8})/i);
+                    if (fb) orderNumbers.add(fb[1]);
+                }
             }
 
             if (orderNumbers.size === 0) return;
 
-            // Aikaleima (esim. "30.10.2026 07:33")
-            let ts = Date.now();
-            const fullDateMatch = text.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})/);
-            if (fullDateMatch) {
-                const [, day, mon, yr, hr, mn] = fullDateMatch;
-                ts = new Date(Number(yr), Number(mon) - 1, Number(day), Number(hr), Number(mn), 0).getTime();
-            }
-
-            // Käyttäjänimi: Pupesoftin lokissa solu 1 (tai 0)
+            // 6. Poimitaan käyttäjänimi suoraan päärivin käyttäjäsolusta (solu 1 tai 0)
             let user = '';
-            const cells = Array.from(tr.querySelectorAll('td, th'));
-
-            for (let i = 0; i < Math.min(cells.length, 3); i++) {
-                const cText = cells[i].textContent.trim();
+            const candidateIndices = dateCellIndex === 0 ? [1, 2] : [0, 2];
+            for (const idx of candidateIndices) {
+                if (!directTds[idx]) continue;
+                const cText = directTds[idx].textContent.trim();
+                if (!cText || cText.includes('.php') || cText.includes('/')) continue;
                 const low = cText.toLowerCase();
                 if (GLOBAL_USER_MAP.has(low)) {
                     user = GLOBAL_USER_MAP.get(low);
                     break;
                 }
-                if (low === 'varasto') {
-                    user = 'Varasto';
-                    break;
-                }
-                if (i >= 1 && !cText.includes('.php') && !cText.includes(':') && cText.length >= 2 && cText.length <= 25) {
+                if (cText.length >= 2 && cText.length <= 40 && !/^\d/.test(cText)) {
                     user = cText;
                     break;
                 }
             }
 
-            if (!user) {
-                for (const td of cells) {
-                    const cText = td.textContent.trim();
-                    if (/^[A-ZÅÄÖ][a-zåäö]+\s+[A-ZÅÄÖ][a-zåäö]+$/.test(cText)) {
-                        user = cText;
-                        break;
-                    }
-                }
-            }
-
             if (!user) user = 'Varasto';
 
+            // 7. Tallennetaan kullekin tilaukselle aina tuorein oikea tulostustapahtuma
             for (const orderNo of orderNumbers) {
-                claims[orderNo] = {
-                    picker: user,
-                    timestamp: ts,
-                    action: 'tulostettu',
-                    source: 'suorituskykyloki'
-                };
+                if (!claims[orderNo] || ts >= claims[orderNo].timestamp) {
+                    claims[orderNo] = {
+                        picker: user,
+                        timestamp: ts,
+                        action: 'tulostettu',
+                        source: 'suorituskykyloki'
+                    };
+                }
             }
         });
 
@@ -4107,14 +4256,14 @@ async function fetchProductLocations(tuoteno) {
                 });
             }
 
-            // 2. Yleishaku tulostustapahtumille (rekuesti=tulost)
+            // 2. Yleishaku tulostustapahtumille (rekuesti=TULOSTA)
             const formData = new URLSearchParams();
             formData.set('tee', 'listaa');
-            formData.set('rekuesti', 'tulost'); // Haetaan vain tulostukseen liittyvät rivit (ei navigointikohinaa)
+            formData.set('rekuesti', 'TULOSTA'); // Haetaan vain varsinaiset TULOSTA-tapahtumat
 
             const today = new Date();
             const pastDate = new Date();
-            pastDate.setDate(today.getDate() - 60);
+            pastDate.setDate(today.getDate() - 14);
             const pad2 = n => String(n).padStart(2, '0');
 
             formData.set('ppa', pad2(pastDate.getDate()));
@@ -4146,7 +4295,8 @@ async function fetchProductLocations(tuoteno) {
             let addedCount = 0;
 
             for (const [orderNo, item] of Object.entries(parsedClaims)) {
-                if (!claims[orderNo] || claims[orderNo].action === 'tulostettu') {
+                const existing = claims[orderNo];
+                if (!existing || (existing.action === 'tulostettu' && item.timestamp >= existing.timestamp)) {
                     claims[orderNo] = item;
                     addedCount++;
                 }
