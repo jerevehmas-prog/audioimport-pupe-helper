@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      6.4
+// @version      6.5
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, varastopaikkasiirrot, työnjako ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -612,9 +612,10 @@
             const anyYhtio = document.querySelector('input[name="lasku_yhtio"]');
             if (anyYhtio && anyYhtio.value) laskuYhtio = anyYhtio.value.trim();
         }
-        if (laskuYhtio) {
-            params.set('lasku_yhtio', laskuYhtio);
+        if (!laskuYhtio) {
+            laskuYhtio = 'audio';
         }
+        params.set('lasku_yhtio', laskuYhtio);
 
         params.set('vanha_tee2', '');
         params.set('tee2', 'NAYTATILAUS');
@@ -3725,6 +3726,8 @@ async function fetchProductLocations(tuoteno) {
     // =========================================================================
     // NÄKYMÄ 1: KERÄÄ-OHJELMAN TILAUSLISTA (keraa.php)
     // =========================================================================
+    let latestKeraaOrderInfos = [];
+
     function paivitaKeraaTilauslista() {
         const { isKeraaListaSivu } = getPageType();
         if (!isKeraaListaSivu) return;
@@ -3732,7 +3735,7 @@ async function fetchProductLocations(tuoteno) {
         const claims = getClaims();
         const currentPicker = getPickerName();
 
-        // 1. Lisätään oma "Tulostanut"-sarakeotsikko taulukkoon ennen Kerää-saraketta
+        // 1. Lisätään oma "Tulostanut"- ja "Rahti"-sarakeotsikot taulukkoon
         const thList = Array.from(document.querySelectorAll('table tr th'));
         const keraaTh = thList.find(th => th.textContent.trim().includes('Kerää'));
         if (keraaTh && keraaTh.parentNode) {
@@ -3774,16 +3777,31 @@ async function fetchProductLocations(tuoteno) {
 
                 thTulostanut.appendChild(link);
             }
+
+            let thRahti = keraaTh.parentNode.querySelector('.ai-rahti-th');
+            if (!thRahti) {
+                thRahti = document.createElement('th');
+                thRahti.className = 'ai-rahti-th';
+                thRahti.setAttribute('valign', 'top');
+                thRahti.style.cssText = 'vertical-align: top; white-space: nowrap; text-align: center; color: #828282;';
+                thRahti.textContent = 'Rahti';
+                if (keraaTh.nextSibling) {
+                    keraaTh.parentNode.insertBefore(thRahti, keraaTh.nextSibling);
+                } else {
+                    keraaTh.parentNode.appendChild(thRahti);
+                }
+            }
         }
 
-        // Korjataan mahdolliset yhteenvetorivien colspanit
+        // Korjataan mahdolliset yhteenvetorivien colspanit (+2: Tulostanut ja Rahti)
         const colspans = document.querySelectorAll('table tr th[colspan], table tr td[colspan]');
         colspans.forEach(el => {
-            if (!el.dataset.aiColspanFixed) {
-                el.dataset.aiColspanFixed = 'true';
+            if (!el.dataset.aiColspanFixedV2) {
+                el.dataset.aiColspanFixedV2 = 'true';
                 const c = parseInt(el.getAttribute('colspan'), 10);
                 if (c >= 6) {
-                    el.setAttribute('colspan', String(c + 1));
+                    const extra = el.dataset.aiColspanFixed ? 1 : 2;
+                    el.setAttribute('colspan', String(c + extra));
                 }
             }
         });
@@ -3791,7 +3809,10 @@ async function fetchProductLocations(tuoteno) {
         // Etsitään kaikki taulukkorivit (tr), joissa on tilausnumero
         const rows = Array.from(document.querySelectorAll('table tr'));
         const missingOrders = [];
+        const customerMap = new Map();
+        const orderInfos = [];
 
+        // PASS 1: Tunnistetaan ja kerätään rivien tilaustiedot ja ryhmitellään asiakkaittain
         rows.forEach(tr => {
             // Ohitetaan otsikkorivit (th)
             if (tr.querySelector('th')) return;
@@ -3837,18 +3858,49 @@ async function fetchProductLocations(tuoteno) {
 
             if (!orderNo) return;
 
-            // Varmistetaan tilausnumeron solu
             if (!orderCell) {
                 orderCell = cells[1] || cells[0];
             }
 
-            // HUOM: Kerää-napin painallus EI koskaan ylikirjoita tulostajaa!
-            // Tulostaja haetaan AINA vain Tulosta keräyslista -ohjelman tulostustapahtumasta (suorituskykyloki.php).
+            // Asiakkaan tiedot (cells[2])
+            let asiakasNimi = '';
+            let customerKey = '';
+            if (cells[2]) {
+                const parts = cells[2].innerHTML.split(/<br\s*\/?>|\n/i)
+                    .map(s => s.replace(/<[^>]+>/g, '').trim())
+                    .filter(Boolean);
+                const ytunnus = parts.length > 1 ? parts[0] : '';
+                const nameParts = parts.length > 1 ? parts.slice(1) : parts;
+                asiakasNimi = nameParts.join(' ').replace(/\s+/g, ' ').trim();
+                const cleanY = ytunnus.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                const cleanN = asiakasNimi.toUpperCase().replace(/\s+/g, ' ').trim();
+                customerKey = cleanN ? (cleanY ? `${cleanY}___${cleanN}` : cleanN) : (cleanY || '');
+            }
 
+            // Valmis-teksti (cells[3])
+            let valmisText = '';
+            if (cells[3]) {
+                const lines = cells[3].innerHTML.split(/<br\s*\/?>|\n/i)
+                    .map(s => s.replace(/<[^>]+>/g, '').trim())
+                    .filter(Boolean);
+                if (lines.length >= 2) {
+                    valmisText = lines[1];
+                } else if (lines.length === 1) {
+                    valmisText = lines[0];
+                }
+            }
+
+            // Toimitustapa (cells[5])
+            const toimitustapaStr = cells[5] ? cells[5].textContent.trim() : '';
+            const isDpd = /dpd/i.test(toimitustapaStr);
+
+            // Rivimäärä (cells[6])
+            const riviCount = cells[6] ? cells[6].textContent.trim() : '';
+
+            // Tulostettu-aikaleima ja välimuistitarkistus
             const rowTulostettuTs = parseKeraaRowTulostettuTimestamp(cells[3]);
             let claim = claims[orderNo];
 
-            // Varmistetaan että tulostusmerkintä on aidosti suorituskykylokista ja vastaa rivin Tulostettu-aikaa
             if (claim) {
                 const isInvalid = (claim.source !== 'suorituskykyloki') ||
                     (rowTulostettuTs > 0 && Math.abs(claim.timestamp - rowTulostettuTs) > 120000);
@@ -3859,15 +3911,46 @@ async function fetchProductLocations(tuoteno) {
                 }
             }
 
-            // Jos tilausta ei löydy muistista ja se on tulostettu, lisätään kohdennettuun lokihakuun
             if (!claim && rowTulostettuTs > 0) {
                 missingOrders.push({ orderNo, tulostettuTs: rowTulostettuTs });
             }
 
-            // Etsitään solu, jossa Kerää-nappi sijaitsee
             const keraaTd = keraaBtn ? keraaBtn.closest('td') : (cells[cells.length - 2] || cells[cells.length - 1]);
+            const isPika = isOrderMarkedPika(orderNo);
 
-            // Luodaan tai etsitään rivikohtainen "Tulostanut"-solu (sijoitetaan ennen Kerää-saraketta)
+            const orderObj = {
+                tilausNumero: orderNo,
+                customerKey: customerKey || orderNo,
+                customerName: asiakasNimi || ('Tilaus #' + orderNo),
+                toimitustapa: toimitustapaStr,
+                riviCount,
+                paino: '',
+                valmisText,
+                isPika,
+                isDpd,
+                row: tr,
+                claim,
+                keraaTd,
+                keraaBtn
+            };
+
+            orderInfos.push(orderObj);
+
+            if (customerKey) {
+                if (!customerMap.has(customerKey)) {
+                    customerMap.set(customerKey, []);
+                }
+                customerMap.get(customerKey).push(orderObj);
+            }
+        });
+
+        latestKeraaOrderInfos = orderInfos;
+
+        // PASS 2: Luodaan ja päivitetään jokaiselle riville Tulostanut- ja Rahti-solut
+        orderInfos.forEach(ord => {
+            const { tilausNumero: orderNo, row: tr, claim, keraaTd, keraaBtn } = ord;
+
+            // 1. Luodaan tai etsitään rivikohtainen "Tulostanut"-solu (ennen Kerää-saraketta)
             let tdTulostanut = tr.querySelector('.ai-tulostanut-td');
             if (!tdTulostanut) {
                 tdTulostanut = document.createElement('td');
@@ -3880,14 +3963,13 @@ async function fetchProductLocations(tuoteno) {
                 }
             }
 
-            // Poistetaan vanhat päällekkäiset merkit solujen sisältä, jotta Tilaus- ja Kerää-solut pysyvät siisteinä
+            // Poistetaan vanhat päällekkäiset merkit solujen sisältä
             const oldOrderBadge = tr.querySelector('.ai-orderno-badge');
             if (oldOrderBadge) oldOrderBadge.remove();
             const oldKeraaBadge = tr.querySelector('.ai-keraa-row-badge');
             if (oldKeraaBadge) oldKeraaBadge.remove();
 
             if (!claim) {
-                // Tilaus on VAPAA (ei tulostustietoa suorituskykylokissa)
                 tr.style.backgroundColor = '';
                 tdTulostanut.innerHTML = '<span style="color: #94a3b8; font-size: 11px;">—</span>';
                 if (keraaBtn) {
@@ -3897,10 +3979,6 @@ async function fetchProductLocations(tuoteno) {
             } else {
                 const timeStr = formatClaimTime(claim.timestamp);
                 const isOwn = (claim.picker === currentPicker && currentPicker.toLowerCase() !== 'varasto');
-
-                // Värit ja korostukset:
-                // Oma tilaus = keltainen
-                // Toisen tilaus (ml. käyttäjä Varasto) = selkeä punertava/huomioväri
                 const rowBg = isOwn ? 'rgba(254, 240, 138, 0.40)' : 'rgba(254, 226, 226, 0.40)';
                 const badgeBg = isOwn ? '#fef08a' : '#fee2e2';
                 const badgeBorder = isOwn ? '#facc15' : '#fca5a5';
@@ -3910,7 +3988,6 @@ async function fetchProductLocations(tuoteno) {
                 tr.style.backgroundColor = rowBg;
 
                 const actionText = `Tulostanut: ${escapeHtml(claim.picker)} (${timeStr})`;
-
                 tdTulostanut.innerHTML = `
                     <span style="color: ${badgeColor}; background: ${badgeBg}; border: 1px solid ${badgeBorder}; border-radius: 4px; padding: 3px 8px; font-weight: 700; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;" title="Tilaus #${orderNo}: ${escapeHtml(claim.picker)} (${timeStr})">
                         <span>${icon} ${actionText}</span>
@@ -3933,7 +4010,132 @@ async function fetchProductLocations(tuoteno) {
                     keraaBtn.title = `Tilaus: ${claim.picker} (${timeStr})`;
                 }
             }
+
+            // 2. Luodaan tai etsitään rivikohtainen "Rahti"-solu (sijoitetaan Kerää-sarakkeen jälkeen)
+            let tdRahti = tr.querySelector('.ai-rahti-td');
+            if (!tdRahti) {
+                tdRahti = document.createElement('td');
+                tdRahti.className = 'ai-rahti-td';
+                tdRahti.style.cssText = 'padding: 4px 8px; vertical-align: middle; white-space: nowrap; text-align: center;';
+                if (keraaTd && keraaTd.nextSibling) {
+                    keraaTd.parentNode.insertBefore(tdRahti, keraaTd.nextSibling);
+                } else {
+                    tr.appendChild(tdRahti);
+                }
+            }
+
+            const custOrders = customerMap.get(ord.customerKey) || [ord];
+            const hasMultiple = custOrders.length > 1;
+
+            let rahtiBtn = tdRahti.querySelector('.ai-rahti-btn');
+            if (!rahtiBtn) {
+                rahtiBtn = document.createElement('button');
+                rahtiBtn.className = 'ai-rahti-btn';
+                rahtiBtn.type = 'button';
+                tdRahti.appendChild(rahtiBtn);
+            }
+
+            rahtiBtn.style.border = 'none';
+            rahtiBtn.style.borderRadius = '5px';
+            rahtiBtn.style.padding = '4px 9px';
+            rahtiBtn.style.fontSize = '11px';
+            rahtiBtn.style.fontWeight = 'bold';
+            rahtiBtn.style.cursor = 'pointer';
+            rahtiBtn.style.display = 'inline-flex';
+            rahtiBtn.style.alignItems = 'center';
+            rahtiBtn.style.gap = '5px';
+            rahtiBtn.style.transition = 'all 0.15s ease';
+
+            if (hasMultiple) {
+                rahtiBtn.style.background = '#2563eb';
+                rahtiBtn.style.color = '#ffffff';
+                rahtiBtn.style.boxShadow = '0 1px 3px rgba(37, 99, 235, 0.3)';
+                rahtiBtn.innerHTML = `<span>📦 Laske rahti</span> <span style="background:#f59e0b; color:#ffffff; font-size:10px; font-weight:800; padding:1px 5px; border-radius:10px;">${custOrders.length}</span>`;
+                rahtiBtn.title = `Asiakkaalla on ${custOrders.length} tilausta listalla. Klikkaa yhdistääksesi!`;
+                rahtiBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    avaaYhdistelyModaali(ord, custOrders, ord.customerName);
+                };
+            } else {
+                rahtiBtn.style.background = '#0284c7';
+                rahtiBtn.style.color = '#ffffff';
+                rahtiBtn.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.1)';
+                rahtiBtn.innerHTML = `<span>📦 Laske rahti</span>`;
+                rahtiBtn.title = 'Avaa Rahtilaskuri ja siirrä tämän tilauksen tiedot';
+                rahtiBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showToast(`📦 Noudetaan tilaus #${ord.tilausNumero} ja avataan Rahtilaskuri...`);
+                    lahetaTilauksetRahtilaskuriin([ord]);
+                };
+            }
         });
+
+        // 3. Lisätään "Laske rahti valituille" -painike Pupesoftin "Yhdistä valitut keräykseen" -painikkeen viereen
+        const yhdistysSubmitBtn = document.querySelector('input[value*="Yhdistä valitut"], button[value*="Yhdistä valitut"]');
+        if (yhdistysSubmitBtn && yhdistysSubmitBtn.parentNode) {
+            let rahtiValituilleBtn = document.getElementById('ai-keraa-rahti-valituille-btn');
+            if (!rahtiValituilleBtn) {
+                rahtiValituilleBtn = document.createElement('button');
+                rahtiValituilleBtn.id = 'ai-keraa-rahti-valituille-btn';
+                rahtiValituilleBtn.type = 'button';
+                rahtiValituilleBtn.innerHTML = '📦 Laske rahti valituille';
+                rahtiValituilleBtn.title = 'Laske rahti valituille tilauksille yhdessä Rahtilaskurissa';
+                rahtiValituilleBtn.style.cssText = 'background: #0284c7; color: #ffffff; border: none; padding: 6px 12px; margin-right: 8px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1); vertical-align: middle;';
+                rahtiValituilleBtn.onmouseover = () => { rahtiValituilleBtn.style.background = '#0369a1'; };
+                rahtiValituilleBtn.onmouseout = () => { rahtiValituilleBtn.style.background = '#0284c7'; };
+
+                yhdistysSubmitBtn.parentNode.insertBefore(rahtiValituilleBtn, yhdistysSubmitBtn);
+
+                rahtiValituilleBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const currentOrders = latestKeraaOrderInfos.length > 0 ? latestKeraaOrderInfos : orderInfos;
+                    const checkedBoxes = Array.from(document.querySelectorAll('table input[type="checkbox"]:checked'))
+                        .filter(cb => (cb.name && cb.name.includes('valitut')) || cb.value);
+
+                    const selectedOrders = [];
+                    checkedBoxes.forEach(cb => {
+                        const tr = cb.closest('tr');
+                        if (!tr) return;
+                        const matchObj = currentOrders.find(o => o.row === tr);
+                        if (matchObj) {
+                            if (!selectedOrders.some(x => x.tilausNumero === matchObj.tilausNumero)) {
+                                selectedOrders.push(matchObj);
+                            }
+                        } else {
+                            const numMatch = cb.value?.match(/\d+/) || tr.textContent.match(/\b(49\d{4}|\d{5,8})\b/);
+                            if (numMatch && !selectedOrders.some(x => x.tilausNumero === numMatch[0])) {
+                                selectedOrders.push({
+                                    tilausNumero: numMatch[0],
+                                    customerKey: '',
+                                    customerName: 'Tilaus #' + numMatch[0],
+                                    toimitustapa: '',
+                                    riviCount: '',
+                                    paino: '',
+                                    row: tr
+                                });
+                            }
+                        }
+                    });
+
+                    if (selectedOrders.length === 0) {
+                        alert('Valitse vähintään yksi tilaus taulukon valintaruuduista.');
+                        return;
+                    }
+
+                    if (selectedOrders.length === 1) {
+                        showToast(`📦 Noudetaan tilaus #${selectedOrders[0].tilausNumero} ja avataan Rahtilaskuri...`);
+                        lahetaTilauksetRahtilaskuriin(selectedOrders);
+                    } else {
+                        const firstCust = selectedOrders[0].customerName || 'Valitut tilaukset';
+                        avaaYhdistelyModaali(selectedOrders[0], selectedOrders, firstCust);
+                    }
+                });
+            }
+        }
 
         // Jos listalla on tilauksia, joiden tulostustietoa ei vielä ole välimuistissa,
         // suoritetaan niille välitön kohdennettu taustahaku!
@@ -4982,9 +5184,9 @@ async function fetchProductLocations(tuoteno) {
                                     ${ord.isDpd ? '<span style="background:#f03023; color:#fff; font-size:10px; font-weight:bold; padding:1px 6px; border-radius:3px;">DPD</span>' : ''}
                                 </div>
                                 <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                                    <span>${escapeHtml(ord.riviCount || '0')} riviä</span> • 
-                                    <span>${escapeHtml(ord.paino || '0 kg')}</span> • 
-                                    <span>${escapeHtml(ord.toimitustapa || 'Ei toimitustapaa')}</span>
+                                    <span>${escapeHtml(ord.riviCount ? ord.riviCount + ' riviä' : '')}</span>
+                                    ${ord.paino ? ` • <span>${escapeHtml(ord.paino)}</span>` : ''}
+                                    ${ord.toimitustapa ? ` • <span>${escapeHtml(ord.toimitustapa)}</span>` : ''}
                                     ${ord.valmisText ? ` • <span style="color:#059669;">Valmis: ${escapeHtml(ord.valmisText)}</span>` : ''}
                                 </div>
                             </div>
