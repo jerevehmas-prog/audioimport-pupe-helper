@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      6.1
+// @version      6.2
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, varastopaikkasiirrot, työnjako ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -3294,15 +3294,16 @@ async function fetchProductLocations(tuoteno) {
     // =========================================================================
     // SYNKRONOINTI & TALLENNUSTILA (localStorage + BroadcastChannel)
     // =========================================================================
-    const STORAGE_KEY_CLAIMS = 'ai_pupe_picking_claims_v4';
+    const STORAGE_KEY_CLAIMS = 'ai_pupe_picking_claims_v5';
     const STORAGE_KEY_USER = 'ai_pupe_current_picker_name';
     const SYNC_CHANNEL = 'ai_pupe_tyonjako_sync';
 
-    // Siivotaan vanhat mahdollisesti virheelliset välimuistitiedot (esim. NAYTATILAUS-osumat)
+    // Siivotaan vanhat mahdollisesti virheelliset välimuistitiedot (esim. NAYTATILAUS-osumat tai paikalliset avaukset)
     try {
         localStorage.removeItem('ai_pupe_picking_claims_v1');
         localStorage.removeItem('ai_pupe_picking_claims_v2');
         localStorage.removeItem('ai_pupe_picking_claims_v3');
+        localStorage.removeItem('ai_pupe_picking_claims_v4');
     } catch (e) {}
 
     // Käyttäjäkirjasto Pupesoftin käyttäjätunnuksista koko nimiin
@@ -3630,20 +3631,15 @@ async function fetchProductLocations(tuoteno) {
                 orderCell = cells[1] || cells[0];
             }
 
-            // Jos käyttäjä klikkaa Kerää-nappia, merkitään tilaus keräilijälle
-            if (keraaBtn && !keraaBtn.dataset.aiClaimAttached) {
-                keraaBtn.dataset.aiClaimAttached = 'true';
-                keraaBtn.addEventListener('click', () => {
-                    claimOrder(orderNo, currentPicker, 'kerayksessa');
-                });
-            }
+            // HUOM: Kerää-napin painallus EI koskaan ylikirjoita tulostajaa!
+            // Tulostaja haetaan AINA vain Tulosta keräyslista -ohjelman tulostustapahtumasta (suorituskykyloki.php).
 
             const rowTulostettuTs = parseKeraaRowTulostettuTimestamp(cells[3]);
             let claim = claims[orderNo];
 
             // Jos välimuistissa oleva tulostusmerkintä on vanhempi kuin Pupesoftin oma Tulostettu-aikaleima,
             // poistetaan vanhentunut merkintä ja haetaan todellinen tulostaja suorituskykylokista!
-            if (claim && claim.action === 'tulostettu' && rowTulostettuTs > 0 && (claim.timestamp + 60000) < rowTulostettuTs) {
+            if (claim && rowTulostettuTs > 0 && (claim.timestamp + 60000) < rowTulostettuTs) {
                 delete claims[orderNo];
                 saveClaims(claims);
                 claim = null;
@@ -3677,7 +3673,7 @@ async function fetchProductLocations(tuoteno) {
             if (oldKeraaBadge) oldKeraaBadge.remove();
 
             if (!claim) {
-                // Tilaus on VAPAA (ei tulostustietoa eikä aktiivista keräilijää)
+                // Tilaus on VAPAA (ei tulostustietoa suorituskykylokissa)
                 tr.style.backgroundColor = '';
                 tdTulostanut.innerHTML = '<span style="color: #94a3b8; font-size: 11px;">—</span>';
                 if (keraaBtn) {
@@ -3687,7 +3683,6 @@ async function fetchProductLocations(tuoteno) {
             } else {
                 const timeStr = formatClaimTime(claim.timestamp);
                 const isOwn = (claim.picker === currentPicker && currentPicker.toLowerCase() !== 'varasto');
-                const isTulostettu = (claim.action === 'tulostettu');
 
                 // Värit ja korostukset:
                 // Oma tilaus = keltainen
@@ -3700,9 +3695,7 @@ async function fetchProductLocations(tuoteno) {
 
                 tr.style.backgroundColor = rowBg;
 
-                const actionText = isTulostettu
-                    ? `Tulostanut: ${escapeHtml(claim.picker)} (${timeStr})`
-                    : (isOwn ? `Sinulla työn alla (${timeStr})` : `Kerääjä: ${escapeHtml(claim.picker)} (${timeStr})`);
+                const actionText = `Tulostanut: ${escapeHtml(claim.picker)} (${timeStr})`;
 
                 tdTulostanut.innerHTML = `
                     <span style="color: ${badgeColor}; background: ${badgeBg}; border: 1px solid ${badgeBorder}; border-radius: 4px; padding: 3px 8px; font-weight: 700; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;" title="Tilaus #${orderNo}: ${escapeHtml(claim.picker)} (${timeStr})">
@@ -3794,7 +3787,7 @@ async function fetchProductLocations(tuoteno) {
                         if (parsed[orderNo]) {
                             const claims = getClaims();
                             const existing = claims[orderNo];
-                            if (!existing || existing.action === 'tulostettu') {
+                            if (!existing || parsed[orderNo].timestamp >= existing.timestamp) {
                                 claims[orderNo] = parsed[orderNo];
                                 saveClaims(claims);
                                 foundCount++;
@@ -3806,6 +3799,7 @@ async function fetchProductLocations(tuoteno) {
 
             if (foundCount > 0) {
                 paivitaKeraaTilauslista();
+                paivitaKeraaSivuClaim();
                 const totalClaims = Object.keys(getClaims()).length;
                 setSyncStatus(`✓ Tulostustiedot aktiiviset (${totalClaims} kpl)`, '#16a34a');
             } else {
@@ -3843,20 +3837,17 @@ async function fetchProductLocations(tuoteno) {
 
         const claims = getClaims();
         const currentPicker = getPickerName();
-        let claim = claims[orderNo];
-
-        // Jos tilausta ei oltu vielä merkitty kenellekään, merkitään se avaajalle keräykseen
-        if (!claim) {
-            claimOrder(orderNo, currentPicker, 'kerayksessa');
-            claim = {
-                picker: currentPicker,
-                timestamp: Date.now(),
-                action: 'kerayksessa'
-            };
-        }
+        const claim = claims[orderNo];
 
         const oldBanner = document.getElementById('ai-keraa-claim-banner');
         if (oldBanner) oldBanner.remove();
+
+        // Jos tulostustietoa ei ole vielä välimuistissa, haetaan se suorituskykylokista
+        // EIKÄ keksitä tai merkitä avaajaa itseään tilauksen omistajaksi!
+        if (!claim) {
+            tarkistaPuuttuvatTilaukset([orderNo]);
+            return;
+        }
 
         const banner = document.createElement('div');
         banner.id = 'ai-keraa-claim-banner';
@@ -3875,14 +3866,13 @@ async function fetchProductLocations(tuoteno) {
         const timeStr = formatClaimTime(claim.timestamp);
 
         if (isOwn) {
-            // Oma tilaus
+            // Oma tulostettu tilaus
             banner.style.background = '#fef9c3';
             banner.style.border = '1px solid #facc15';
             banner.style.color = '#854d0e';
-            const statusVerb = claim.action === 'tulostettu' ? `tulostettu sinulle (${claim.picker})` : 'sinulla työn alla';
             banner.innerHTML = `
                 <div style="font-size:12.5px; font-weight:700;">
-                    <span>🟡 Tilaus #${orderNo} on ${statusVerb} (${timeStr})</span>
+                    <span>🟡 Tilaus #${orderNo} — Tulostanut: ${escapeHtml(claim.picker)} (${timeStr})</span>
                 </div>
                 <div>
                     <button type="button" id="ai-keraa-release-btn" style="
@@ -3912,16 +3902,15 @@ async function fetchProductLocations(tuoteno) {
             };
 
         } else {
-            // VARATTU / TULOSTETTU TOISELLE KÄYTTÄJÄLLE (ml. Varasto)
+            // TULOSTETTU TOISELLE KÄYTTÄJÄLLE (ml. Varasto)
             banner.style.background = '#fee2e2';
             banner.style.border = '1.5px solid #ef4444';
             banner.style.color = '#991b1b';
-            const actionText = claim.action === 'tulostettu' ? 'on tulostanut tämän tilauksen' : 'kerää parhaillaan tätä tilausta';
             banner.innerHTML = `
                 <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-size:18px;">⛔</span>
                     <div>
-                        <div style="font-size:13px; font-weight:800;">VAROITUS: ${escapeHtml(claim.picker)} ${actionText}!</div>
+                        <div style="font-size:13px; font-weight:800;">VAROITUS: ${escapeHtml(claim.picker)} on tulostanut tämän tilauksen!</div>
                         <div style="font-size:11px; opacity:0.9;">Aikaleima: ${timeStr}. Varmista ettette kerää samaa tilausta päällekkäin.</div>
                     </div>
                 </div>
@@ -3936,16 +3925,6 @@ async function fetchProductLocations(tuoteno) {
                         color: #475569 !important;
                         cursor: pointer !important;
                     ">↩️ Palaa listalle</button>
-                    <button type="button" id="ai-keraa-takeover-btn" style="
-                        background: #ef4444 !important;
-                        color: #ffffff !important;
-                        border: none !important;
-                        padding: 5px 12px !important;
-                        border-radius: 4px !important;
-                        font-size: 11px !important;
-                        font-weight: 800 !important;
-                        cursor: pointer !important;
-                    ">Ota tilaus minulle</button>
                 </div>
             `;
 
@@ -3955,12 +3934,6 @@ async function fetchProductLocations(tuoteno) {
             document.getElementById('ai-keraa-back-btn').onclick = (e) => {
                 e.preventDefault();
                 window.location.href = '/tilauskasittely/keraa.php';
-            };
-
-            document.getElementById('ai-keraa-takeover-btn').onclick = () => {
-                if (confirm(`Haluatko varmasti siirtää tilauksen #${orderNo} kerääjäksi itsesi (${currentPicker})?`)) {
-                    claimOrder(orderNo, currentPicker, 'kerayksessa');
-                }
             };
         }
 
@@ -4059,6 +4032,16 @@ async function fetchProductLocations(tuoteno) {
                 }
             }
             if (!ts || dateCellIndex === -1) return;
+
+            // Varmistetaan, että jos rivillä on skriptisarake (.php), kyseessä on nimenomaan
+            // Tulosta keräyslista (lahetteen_tulostusjono.php) tai Tulosta keräyserä (tulosta_keraysera.php)
+            const scriptCell = directTds.find((td, idx) => idx !== dateCellIndex && idx !== directTds.length - 1 && /\.php/i.test(td.textContent));
+            if (scriptCell) {
+                const scriptTxt = scriptCell.textContent.trim();
+                if (!/lahetteen_tulostusjono\.php|tulosta_keraysera\.php/i.test(scriptTxt)) {
+                    return;
+                }
+            }
 
             const paramTd = directTds[directTds.length - 1];
             // Huom: DOMin .textContent liimaa vierekkäiset <td>0</td><td>497110</td> yhteen muotoon "0497110"!
@@ -4205,7 +4188,7 @@ async function fetchProductLocations(tuoteno) {
                 }
             }
 
-            if (!user) user = 'Varasto';
+            if (!user) return;
 
             // 7. Tallennetaan kullekin tilaukselle aina tuorein oikea tulostustapahtuma
             for (const orderNo of orderNumbers) {
@@ -4296,7 +4279,7 @@ async function fetchProductLocations(tuoteno) {
 
             for (const [orderNo, item] of Object.entries(parsedClaims)) {
                 const existing = claims[orderNo];
-                if (!existing || (existing.action === 'tulostettu' && item.timestamp >= existing.timestamp)) {
+                if (!existing || item.timestamp >= existing.timestamp) {
                     claims[orderNo] = item;
                     addedCount++;
                 }
