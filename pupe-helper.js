@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      6.3
+// @version      6.4
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, varastopaikkasiirrot, työnjako ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -1324,35 +1324,49 @@
                     background-color: #0369a1 !important;
                 }
                 /* ========================================================================= */
-                /* TAULUKON KENTTIEN TIIVISTYS, JOTTA VARASTOPAIKKASIIRTO MAHTUU RINNALLE    */
+                /* SKAALAUTUVA JA LAITEOPTIMOITU KERÄILYTAULUKKO (#maintable)                */
                 /* ========================================================================= */
+                form[name*="rivit"], form#rivit_form {
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                    overflow-x: auto !important;
+                }
+
                 #maintable {
                     width: 100% !important;
+                    min-width: 100% !important;
+                    max-width: 100% !important;
+                    table-layout: auto !important;
+                    border-collapse: separate !important;
+                    border-spacing: 0 !important;
+                    box-sizing: border-box !important;
                 }
 
-                #maintable th:first-child,
-                #maintable th#paikka_header {
-                    white-space: nowrap !important;
-                    min-width: 280px !important;
-                }
-
-                /* Paikka-sarake rinnakkain */
-                #maintable tbody tr.keraysrivi > td:first-child,
-                #maintable tr.keraysrivi > td:first-child {
+                /* 1. SARAKE: PAIKKA + VARASTOPAIKKASIIRTO (Kompakti, rinnakkain) */
+                #maintable th:nth-of-type(1),
+                #maintable th#paikka_header,
+                #maintable tbody tr.keraysrivi > td:nth-of-type(1),
+                #maintable tr.keraysrivi > td:nth-of-type(1) {
+                    width: 240px !important;
+                    min-width: 230px !important;
+                    max-width: 255px !important;
                     white-space: nowrap !important;
                     vertical-align: middle !important;
-                    padding-right: 8px !important;
+                    padding: 6px 8px !important;
+                    box-sizing: border-box !important;
                 }
 
-                #maintable tbody tr.keraysrivi > td:first-child select,
-                #maintable tr.keraysrivi > td:first-child select {
-                    min-width: 130px !important;
+                #maintable tbody tr.keraysrivi > td:nth-of-type(1) select,
+                #maintable tr.keraysrivi > td:nth-of-type(1) select {
+                    min-width: 105px !important;
                     width: auto !important;
-                    max-width: none !important;
-                    height: 28px !important;
-                    line-height: 26px !important;
-                    padding: 2px 24px 2px 8px !important;
-                    font-size: 10pt !important;
+                    max-width: 125px !important;
+                    height: 24px !important;
+                    line-height: 22px !important;
+                    padding: 1px 18px 1px 6px !important;
+                    font-size: 9.5pt !important;
                     border: 1px solid #cbd5e1 !important;
                     border-radius: 4px !important;
                     background-color: #ffffff !important;
@@ -1361,55 +1375,132 @@
                     box-sizing: border-box !important;
                 }
 
-                /* Määrä & Yksikkö kompaktiksi */
-                #maintable th:nth-child(4), #maintable tr.keraysrivi > td:nth-child(4) {
-                    padding-left: 4px !important;
-                    padding-right: 4px !important;
-                    width: 45px !important;
-                    text-align: center !important;
-                }
-
-                #maintable th:nth-child(5), #maintable tr.keraysrivi > td:nth-child(5) {
-                    padding-left: 4px !important;
-                    padding-right: 4px !important;
-                    width: 38px !important;
-                    text-align: center !important;
-                }
-
-                /* Poikkeava määrä -kenttä kompaktiksi */
-                #maintable th:nth-child(6), #maintable tr.keraysrivi > td:nth-child(6) {
-                    padding-left: 4px !important;
-                    padding-right: 4px !important;
-                    width: 65px !important;
-                    text-align: center !important;
-                }
-
-                #maintable tr.keraysrivi > td:nth-child(6) input.poikkeava_maara {
-                    width: 45px !important;
-                    text-align: center !important;
-                    padding: 2px 4px !important;
+                /* 2. SARAKE: TUOTENUMERO (Siisti ja kompakti, ei syö tilaa Nimitykseltä) */
+                #maintable th:nth-of-type(2),
+                #maintable tbody tr.keraysrivi > td:nth-of-type(2),
+                #maintable tr.keraysrivi > td:nth-of-type(2) {
+                    width: 130px !important;
+                    min-width: 110px !important;
+                    max-width: 150px !important;
+                    white-space: nowrap !important;
+                    vertical-align: middle !important;
+                    padding: 6px 10px !important;
+                    text-align: left !important;
                     box-sizing: border-box !important;
                 }
 
-                /* Poikkeaman käsittely -valikko kompaktiksi */
-                #maintable th:nth-child(7), #maintable tr.keraysrivi > td:nth-child(7) {
-                    padding-left: 4px !important;
-                    padding-right: 4px !important;
-                    width: 110px !important;
-                }
-
-                #maintable tr.keraysrivi > td:nth-child(7) select {
-                    max-width: 115px !important;
-                    padding: 3px 4px !important;
+                /* 3. SARAKE: NIMITYS - JOUSTAVA PÄÄSARAKE JOKA SKAALAUTUU IKKUNAN MUKAAN */
+                #maintable th:nth-of-type(3),
+                #maintable tbody tr.keraysrivi > td:nth-of-type(3),
+                #maintable tr.keraysrivi > td:nth-of-type(3) {
+                    width: auto !important;
+                    min-width: 240px !important;
+                    vertical-align: middle !important;
+                    padding: 6px 12px !important;
+                    text-align: left !important;
+                    word-break: normal !important;
+                    overflow-wrap: break-word !important;
+                    line-height: 1.35 !important;
                     font-size: 9.5pt !important;
+                    color: #1e293b !important;
+                    box-sizing: border-box !important;
                 }
 
-                /* Merkkaa kerätyksi -sarake */
-                #maintable th:nth-child(8), #maintable tr.keraysrivi > td:nth-child(8) {
-                    padding-left: 6px !important;
-                    padding-right: 6px !important;
-                    width: 75px !important;
+                /* 4. SARAKE: MÄÄRÄ */
+                #maintable th:nth-of-type(4),
+                #maintable tbody tr.keraysrivi > td:nth-of-type(4),
+                #maintable tr.keraysrivi > td:nth-of-type(4) {
+                    width: 50px !important;
+                    min-width: 44px !important;
+                    max-width: 55px !important;
+                    white-space: nowrap !important;
                     text-align: center !important;
+                    vertical-align: middle !important;
+                    padding: 6px 4px !important;
+                    box-sizing: border-box !important;
+                }
+
+                /* 5. SARAKE: YKSIKKÖ */
+                #maintable th:nth-of-type(5),
+                #maintable tbody tr.keraysrivi > td:nth-of-type(5),
+                #maintable tr.keraysrivi > td:nth-of-type(5) {
+                    width: 45px !important;
+                    min-width: 40px !important;
+                    max-width: 50px !important;
+                    white-space: nowrap !important;
+                    text-align: center !important;
+                    vertical-align: middle !important;
+                    padding: 6px 4px !important;
+                    color: #475569 !important;
+                    font-size: 9pt !important;
+                    box-sizing: border-box !important;
+                }
+
+                /* 6. SARAKE: POIKKEAVA MÄÄRÄ */
+                #maintable th:nth-of-type(6),
+                #maintable tbody tr.keraysrivi > td:nth-of-type(6),
+                #maintable tr.keraysrivi > td:nth-of-type(6) {
+                    width: 65px !important;
+                    min-width: 60px !important;
+                    max-width: 75px !important;
+                    white-space: nowrap !important;
+                    text-align: center !important;
+                    vertical-align: middle !important;
+                    padding: 6px 4px !important;
+                    box-sizing: border-box !important;
+                }
+
+                #maintable tr.keraysrivi > td:nth-of-type(6) input.poikkeava_maara {
+                    width: 42px !important;
+                    height: 24px !important;
+                    text-align: center !important;
+                    padding: 2px !important;
+                    font-size: 9.5pt !important;
+                    border: 1px solid #cbd5e1 !important;
+                    border-radius: 4px !important;
+                    box-sizing: border-box !important;
+                }
+
+                /* 7. SARAKE: POIKKEAMAN KÄSITTELY */
+                #maintable th:nth-of-type(7),
+                #maintable tbody tr.keraysrivi > td:nth-of-type(7),
+                #maintable tr.keraysrivi > td:nth-of-type(7) {
+                    width: 110px !important;
+                    min-width: 95px !important;
+                    max-width: 120px !important;
+                    text-align: center !important;
+                    vertical-align: middle !important;
+                    padding: 6px 4px !important;
+                    box-sizing: border-box !important;
+                }
+
+                #maintable tr.keraysrivi > td:nth-of-type(7) select {
+                    width: 100% !important;
+                    max-width: 115px !important;
+                    height: 24px !important;
+                    padding: 2px 4px !important;
+                    font-size: 9pt !important;
+                    border: 1px solid #cbd5e1 !important;
+                    border-radius: 4px !important;
+                    box-sizing: border-box !important;
+                }
+
+                /* 8. SARAKE: MERKKAA KERÄTYKSI */
+                #maintable th:nth-of-type(8),
+                #maintable tbody tr.keraysrivi > td:nth-of-type(8),
+                #maintable tr.keraysrivi > td:nth-of-type(8) {
+                    width: 90px !important;
+                    min-width: 80px !important;
+                    max-width: 105px !important;
+                    text-align: center !important;
+                    vertical-align: middle !important;
+                    padding: 6px 6px !important;
+                    white-space: nowrap !important;
+                    box-sizing: border-box !important;
+                }
+
+                #maintable tfoot select {
+                    max-width: 320px !important;
                 }
             `;
             document.head.appendChild(style);
@@ -2100,11 +2191,13 @@ async function fetchProductLocations(tuoteno) {
             const paikkaSelect = tr.querySelector('select[name^="varastorekla"]');
             if (paikkaSelect) {
                 paikkaSelect.style.verticalAlign = 'middle';
-                paikkaSelect.style.minWidth = '130px';
+                paikkaSelect.style.minWidth = '105px';
                 paikkaSelect.style.width = 'auto';
-                paikkaSelect.style.height = '28px';
-                paikkaSelect.style.lineHeight = '26px';
-                paikkaSelect.style.padding = '2px 24px 2px 8px';
+                paikkaSelect.style.maxWidth = '125px';
+                paikkaSelect.style.height = '24px';
+                paikkaSelect.style.lineHeight = '22px';
+                paikkaSelect.style.padding = '1px 18px 1px 6px';
+                paikkaSelect.style.fontSize = '9.5pt';
                 paikkaSelect.style.boxSizing = 'border-box';
                 paikkaSelect.style.backgroundColor = '#ffffff';
                 paikkaSelect.style.border = '1px solid #cbd5e1';
@@ -2593,34 +2686,49 @@ async function fetchProductLocations(tuoteno) {
             }
 
             /* ========================================================================= */
-            /* TAULUKON KENTTIEN TIIVISTYS, JOTTA VARASTOPAIKKASIIRTO MAHTUU RINNALLE    */
+            /* SKAALAUTUVA JA LAITEOPTIMOITU KERÄILYTAULUKKO (#maintable)                */
             /* ========================================================================= */
+            form[name*="rivit"], form#rivit_form {
+                display: block !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                box-sizing: border-box !important;
+                overflow-x: auto !important;
+            }
+
             #maintable {
                 width: 100% !important;
+                min-width: 100% !important;
+                max-width: 100% !important;
+                table-layout: auto !important;
+                border-collapse: separate !important;
+                border-spacing: 0 !important;
+                box-sizing: border-box !important;
             }
 
-            #maintable th:first-child,
-            #maintable th#paikka_header {
-                white-space: nowrap !important;
-                min-width: 280px !important;
-            }
-
-            #maintable tbody tr.keraysrivi > td:first-child,
-            #maintable tr.keraysrivi > td:first-child {
+            /* 1. SARAKE: PAIKKA + VARASTOPAIKKASIIRTO (Kompakti, rinnakkain) */
+            #maintable th:nth-of-type(1),
+            #maintable th#paikka_header,
+            #maintable tbody tr.keraysrivi > td:nth-of-type(1),
+            #maintable tr.keraysrivi > td:nth-of-type(1) {
+                width: 240px !important;
+                min-width: 230px !important;
+                max-width: 255px !important;
                 white-space: nowrap !important;
                 vertical-align: middle !important;
-                padding-right: 8px !important;
+                padding: 6px 8px !important;
+                box-sizing: border-box !important;
             }
 
-            #maintable tbody tr.keraysrivi > td:first-child select,
-            #maintable tr.keraysrivi > td:first-child select {
-                min-width: 130px !important;
+            #maintable tbody tr.keraysrivi > td:nth-of-type(1) select,
+            #maintable tr.keraysrivi > td:nth-of-type(1) select {
+                min-width: 105px !important;
                 width: auto !important;
-                max-width: none !important;
-                height: 28px !important;
-                line-height: 26px !important;
-                padding: 2px 24px 2px 8px !important;
-                font-size: 10pt !important;
+                max-width: 125px !important;
+                height: 24px !important;
+                line-height: 22px !important;
+                padding: 1px 18px 1px 6px !important;
+                font-size: 9.5pt !important;
                 border: 1px solid #cbd5e1 !important;
                 border-radius: 4px !important;
                 background-color: #ffffff !important;
@@ -2629,51 +2737,132 @@ async function fetchProductLocations(tuoteno) {
                 box-sizing: border-box !important;
             }
 
-            #maintable th:nth-child(4), #maintable tr.keraysrivi > td:nth-child(4) {
-                padding-left: 4px !important;
-                padding-right: 4px !important;
-                width: 45px !important;
-                text-align: center !important;
-            }
-
-            #maintable th:nth-child(5), #maintable tr.keraysrivi > td:nth-child(5) {
-                padding-left: 4px !important;
-                padding-right: 4px !important;
-                width: 38px !important;
-                text-align: center !important;
-            }
-
-            #maintable th:nth-child(6), #maintable tr.keraysrivi > td:nth-child(6) {
-                padding-left: 4px !important;
-                padding-right: 4px !important;
-                width: 65px !important;
-                text-align: center !important;
-            }
-
-            #maintable tr.keraysrivi > td:nth-child(6) input.poikkeava_maara {
-                width: 45px !important;
-                text-align: center !important;
-                padding: 2px 4px !important;
+            /* 2. SARAKE: TUOTENUMERO (Siisti ja kompakti, ei syö tilaa Nimitykseltä) */
+            #maintable th:nth-of-type(2),
+            #maintable tbody tr.keraysrivi > td:nth-of-type(2),
+            #maintable tr.keraysrivi > td:nth-of-type(2) {
+                width: 130px !important;
+                min-width: 110px !important;
+                max-width: 150px !important;
+                white-space: nowrap !important;
+                vertical-align: middle !important;
+                padding: 6px 10px !important;
+                text-align: left !important;
                 box-sizing: border-box !important;
             }
 
-            #maintable th:nth-child(7), #maintable tr.keraysrivi > td:nth-child(7) {
-                padding-left: 4px !important;
-                padding-right: 4px !important;
-                width: 110px !important;
-            }
-
-            #maintable tr.keraysrivi > td:nth-child(7) select {
-                max-width: 115px !important;
-                padding: 3px 4px !important;
+            /* 3. SARAKE: NIMITYS - JOUSTAVA PÄÄSARAKE JOKA SKAALAUTUU IKKUNAN MUKAAN */
+            #maintable th:nth-of-type(3),
+            #maintable tbody tr.keraysrivi > td:nth-of-type(3),
+            #maintable tr.keraysrivi > td:nth-of-type(3) {
+                width: auto !important;
+                min-width: 240px !important;
+                vertical-align: middle !important;
+                padding: 6px 12px !important;
+                text-align: left !important;
+                word-break: normal !important;
+                overflow-wrap: break-word !important;
+                line-height: 1.35 !important;
                 font-size: 9.5pt !important;
+                color: #1e293b !important;
+                box-sizing: border-box !important;
             }
 
-            #maintable th:nth-child(8), #maintable tr.keraysrivi > td:nth-child(8) {
-                padding-left: 6px !important;
-                padding-right: 6px !important;
-                width: 75px !important;
+            /* 4. SARAKE: MÄÄRÄ */
+            #maintable th:nth-of-type(4),
+            #maintable tbody tr.keraysrivi > td:nth-of-type(4),
+            #maintable tr.keraysrivi > td:nth-of-type(4) {
+                width: 50px !important;
+                min-width: 44px !important;
+                max-width: 55px !important;
+                white-space: nowrap !important;
                 text-align: center !important;
+                vertical-align: middle !important;
+                padding: 6px 4px !important;
+                box-sizing: border-box !important;
+            }
+
+            /* 5. SARAKE: YKSIKKÖ */
+            #maintable th:nth-of-type(5),
+            #maintable tbody tr.keraysrivi > td:nth-of-type(5),
+            #maintable tr.keraysrivi > td:nth-of-type(5) {
+                width: 45px !important;
+                min-width: 40px !important;
+                max-width: 50px !important;
+                white-space: nowrap !important;
+                text-align: center !important;
+                vertical-align: middle !important;
+                padding: 6px 4px !important;
+                color: #475569 !important;
+                font-size: 9pt !important;
+                box-sizing: border-box !important;
+            }
+
+            /* 6. SARAKE: POIKKEAVA MÄÄRÄ */
+            #maintable th:nth-of-type(6),
+            #maintable tbody tr.keraysrivi > td:nth-of-type(6),
+            #maintable tr.keraysrivi > td:nth-of-type(6) {
+                width: 65px !important;
+                min-width: 60px !important;
+                max-width: 75px !important;
+                white-space: nowrap !important;
+                text-align: center !important;
+                vertical-align: middle !important;
+                padding: 6px 4px !important;
+                box-sizing: border-box !important;
+            }
+
+            #maintable tr.keraysrivi > td:nth-of-type(6) input.poikkeava_maara {
+                width: 42px !important;
+                height: 24px !important;
+                text-align: center !important;
+                padding: 2px !important;
+                font-size: 9.5pt !important;
+                border: 1px solid #cbd5e1 !important;
+                border-radius: 4px !important;
+                box-sizing: border-box !important;
+            }
+
+            /* 7. SARAKE: POIKKEAMAN KÄSITTELY */
+            #maintable th:nth-of-type(7),
+            #maintable tbody tr.keraysrivi > td:nth-of-type(7),
+            #maintable tr.keraysrivi > td:nth-of-type(7) {
+                width: 110px !important;
+                min-width: 95px !important;
+                max-width: 120px !important;
+                text-align: center !important;
+                vertical-align: middle !important;
+                padding: 6px 4px !important;
+                box-sizing: border-box !important;
+            }
+
+            #maintable tr.keraysrivi > td:nth-of-type(7) select {
+                width: 100% !important;
+                max-width: 115px !important;
+                height: 24px !important;
+                padding: 2px 4px !important;
+                font-size: 9pt !important;
+                border: 1px solid #cbd5e1 !important;
+                border-radius: 4px !important;
+                box-sizing: border-box !important;
+            }
+
+            /* 8. SARAKE: MERKKAA KERÄTYKSI */
+            #maintable th:nth-of-type(8),
+            #maintable tbody tr.keraysrivi > td:nth-of-type(8),
+            #maintable tr.keraysrivi > td:nth-of-type(8) {
+                width: 90px !important;
+                min-width: 80px !important;
+                max-width: 105px !important;
+                text-align: center !important;
+                vertical-align: middle !important;
+                padding: 6px 6px !important;
+                white-space: nowrap !important;
+                box-sizing: border-box !important;
+            }
+
+            #maintable tfoot select {
+                max-width: 320px !important;
             }
         `;
         document.head.appendChild(st);
@@ -3313,16 +3502,17 @@ async function fetchProductLocations(tuoteno) {
     // =========================================================================
     // SYNKRONOINTI & TALLENNUSTILA (localStorage + BroadcastChannel)
     // =========================================================================
-    const STORAGE_KEY_CLAIMS = 'ai_pupe_picking_claims_v5';
+    const STORAGE_KEY_CLAIMS = 'ai_pupe_picking_claims_v6';
     const STORAGE_KEY_USER = 'ai_pupe_current_picker_name';
     const SYNC_CHANNEL = 'ai_pupe_tyonjako_sync';
 
-    // Siivotaan vanhat mahdollisesti virheelliset välimuistitiedot (esim. NAYTATILAUS-osumat tai paikalliset avaukset)
+    // Siivotaan vanhat mahdollisesti virheelliset välimuistitiedot
     try {
         localStorage.removeItem('ai_pupe_picking_claims_v1');
         localStorage.removeItem('ai_pupe_picking_claims_v2');
         localStorage.removeItem('ai_pupe_picking_claims_v3');
         localStorage.removeItem('ai_pupe_picking_claims_v4');
+        localStorage.removeItem('ai_pupe_picking_claims_v5');
     } catch (e) {}
 
     // Käyttäjäkirjasto Pupesoftin käyttäjätunnuksista koko nimiin
@@ -3386,6 +3576,8 @@ async function fetchProductLocations(tuoteno) {
             const active = {};
             for (const [k, v] of Object.entries(parsed)) {
                 if (!v || !v.timestamp) continue;
+                // Hyväksytään tulostustiedoksi ainoastaan aito suorituskykylokin merkintä
+                if (v.action === 'tulostettu' && v.source !== 'suorituskykyloki') continue;
                 const ttl = v.action === 'kerayksessa' ? TTL_KERAYS_MS : TTL_PRINT_MS;
                 if ((now - v.timestamp) < ttl) {
                     active[k] = v;
@@ -3656,17 +3848,20 @@ async function fetchProductLocations(tuoteno) {
             const rowTulostettuTs = parseKeraaRowTulostettuTimestamp(cells[3]);
             let claim = claims[orderNo];
 
-            // Jos välimuistissa oleva tulostusmerkintä on vanhempi kuin Pupesoftin oma Tulostettu-aikaleima,
-            // poistetaan vanhentunut merkintä ja haetaan todellinen tulostaja suorituskykylokista!
-            if (claim && rowTulostettuTs > 0 && (claim.timestamp + 60000) < rowTulostettuTs) {
-                delete claims[orderNo];
-                saveClaims(claims);
-                claim = null;
+            // Varmistetaan että tulostusmerkintä on aidosti suorituskykylokista ja vastaa rivin Tulostettu-aikaa
+            if (claim) {
+                const isInvalid = (claim.source !== 'suorituskykyloki') ||
+                    (rowTulostettuTs > 0 && Math.abs(claim.timestamp - rowTulostettuTs) > 120000);
+                if (isInvalid) {
+                    delete claims[orderNo];
+                    saveClaims(claims);
+                    claim = null;
+                }
             }
 
-            // Jos tilausta ei vielä löydy muistista, lisätään se kohdennettuun lokihakuun
-            if (!claim) {
-                missingOrders.push(orderNo);
+            // Jos tilausta ei löydy muistista ja se on tulostettu, lisätään kohdennettuun lokihakuun
+            if (!claim && rowTulostettuTs > 0) {
+                missingOrders.push({ orderNo, tulostettuTs: rowTulostettuTs });
             }
 
             // Etsitään solu, jossa Kerää-nappi sijaitsee
@@ -3752,41 +3947,54 @@ async function fetchProductLocations(tuoteno) {
     // =========================================================================
     const activeOrderLookups = new Set();
 
-    async function tarkistaPuuttuvatTilaukset(orderNumbers) {
-        const toFetch = orderNumbers.filter(no => !activeOrderLookups.has(no));
+    async function tarkistaPuuttuvatTilaukset(orderItems) {
+        const normalized = orderItems.map(item => {
+            if (typeof item === 'object' && item !== null) return item;
+            return { orderNo: String(item), tulostettuTs: 0 };
+        });
+
+        const toFetch = normalized.filter(item => item.orderNo && !activeOrderLookups.has(item.orderNo));
         if (toFetch.length === 0) return;
 
-        toFetch.forEach(no => activeOrderLookups.add(no));
+        toFetch.forEach(item => activeOrderLookups.add(item.orderNo));
 
         try {
-            console.log(`[Pupe-Työnjako] Haetaan tulostustiedot tilauksille: ${toFetch.join(', ')}`);
+            const orderListStr = toFetch.map(i => i.orderNo).join(', ');
+            console.log(`[Pupe-Työnjako] Haetaan tulostustiedot suorituskykylokista: ${orderListStr}`);
             setSyncStatus(`🔄 Haetaan tulostajia (${toFetch.length} kpl)...`, '#64748b');
 
-            // Haetaan kullekin puuttuvalle tilaukselle tiedot suorituskykylokista (max 5 rinnakkain)
             const batches = [];
             for (let i = 0; i < toFetch.length; i += 5) {
                 batches.push(toFetch.slice(i, i + 5));
             }
 
             let foundCount = 0;
+            const pad2 = n => String(n).padStart(2, '0');
+
             for (const batch of batches) {
-                await Promise.all(batch.map(async (orderNo) => {
+                await Promise.all(batch.map(async ({ orderNo, tulostettuTs }) => {
                     const formData = new URLSearchParams();
                     formData.set('tee', 'listaa');
                     formData.set('rekuesti', orderNo);
+                    formData.set('kuka', '');
+                    formData.set('skripti', '');
 
-                    // 60 päivän aikaväli
-                    const today = new Date();
-                    const pastDate = new Date();
-                    pastDate.setDate(today.getDate() - 60);
-                    const pad2 = n => String(n).padStart(2, '0');
+                    let startDate = new Date();
+                    let endDate = new Date();
 
-                    formData.set('ppa', pad2(pastDate.getDate()));
-                    formData.set('kka', pad2(pastDate.getMonth() + 1));
-                    formData.set('vva', String(pastDate.getFullYear()));
-                    formData.set('ppl', pad2(today.getDate()));
-                    formData.set('kkl', pad2(today.getMonth() + 1));
-                    formData.set('vvl', String(today.getFullYear()));
+                    if (tulostettuTs > 0) {
+                        startDate = new Date(tulostettuTs - 24 * 60 * 60 * 1000);
+                        endDate = new Date(Math.min(Date.now(), tulostettuTs + 24 * 60 * 60 * 1000));
+                    } else {
+                        startDate.setDate(endDate.getDate() - 30);
+                    }
+
+                    formData.set('ppa', pad2(startDate.getDate()));
+                    formData.set('kka', pad2(startDate.getMonth() + 1));
+                    formData.set('vva', String(startDate.getFullYear()));
+                    formData.set('ppl', pad2(endDate.getDate()));
+                    formData.set('kkl', pad2(endDate.getMonth() + 1));
+                    formData.set('vvl', String(endDate.getFullYear()));
                     formData.set('tta', '00');
                     formData.set('mma', '00');
                     formData.set('ttl', '23');
@@ -3805,12 +4013,9 @@ async function fetchProductLocations(tuoteno) {
                         const parsed = parsiSuorituskykylokiDoc(doc);
                         if (parsed[orderNo]) {
                             const claims = getClaims();
-                            const existing = claims[orderNo];
-                            if (!existing || parsed[orderNo].timestamp >= existing.timestamp) {
-                                claims[orderNo] = parsed[orderNo];
-                                saveClaims(claims);
-                                foundCount++;
-                            }
+                            claims[orderNo] = parsed[orderNo];
+                            saveClaims(claims);
+                            foundCount++;
                         }
                     }
                 }));
@@ -3828,7 +4033,7 @@ async function fetchProductLocations(tuoteno) {
         } catch (e) {
             console.warn('[Pupe-Työnjako] Virhe kohdennetussa lokihaussa:', e);
         } finally {
-            toFetch.forEach(no => activeOrderLookups.delete(no));
+            toFetch.forEach(item => activeOrderLookups.delete(item.orderNo));
         }
     }
 
@@ -3970,59 +4175,9 @@ async function fetchProductLocations(tuoteno) {
     // NÄKYMÄ 3: TULOSTA KERÄYSLISTA (lahetteen_tulostusjono.php)
     // =========================================================================
     function alustaTulostusjonoKuuntelu() {
-        const { isTulostusjonoSivu } = getPageType();
-        if (!isTulostusjonoSivu) return;
-
-        // Etsitään olemassa olevat rivikohtaiset Tulosta-painikkeet
-        const printSubmits = document.querySelectorAll('input[type="submit"][value="Tulosta"], button[value="Tulosta"]');
-        printSubmits.forEach(btn => {
-            if (btn.dataset.aiPrintAttached) return;
-            btn.dataset.aiPrintAttached = 'true';
-
-            const handlePrint = () => {
-                const tr = btn.closest('tr');
-                const form = btn.form || btn.closest('form');
-                let orderNo = '';
-                const orderInput = (form && form.querySelector('input[name*="tulostukseen"]')) || (tr && tr.querySelector('input[name*="tulostukseen"]'));
-                if (orderInput && orderInput.value) {
-                    orderNo = orderInput.value.trim();
-                }
-                if (!orderNo && tr) {
-                    const td = tr.querySelector('td:nth-child(2)');
-                    const m = (td ? td.textContent : '').match(/\b(\d{5,8})\b/);
-                    orderNo = m ? m[1] : '';
-                }
-
-                if (orderNo) {
-                    const pickerName = getPickerName();
-                    console.log(`[Pupe-Työnjako] Tilaus #${orderNo} tulostettu käyttäjälle: ${pickerName}`);
-                    claimOrder(orderNo, pickerName, 'tulostettu');
-                }
-            };
-
-            btn.addEventListener('click', handlePrint);
-            if (btn.form) {
-                btn.form.addEventListener('submit', handlePrint);
-            }
-        });
-
-        // "Tulosta kaikki" -painikkeen käsittely
-        const printAllBtn = document.getElementById('tulosta_kaikki_nappi') || document.querySelector('input[value="Tulosta kaikki"]');
-        if (printAllBtn) {
-            const allForm = printAllBtn.closest('form');
-            if (allForm && !allForm.dataset.aiPrintAllAttached) {
-                allForm.dataset.aiPrintAllAttached = 'true';
-                allForm.addEventListener('submit', () => {
-                    const pickerName = getPickerName();
-                    const orders = Array.from(document.querySelectorAll('input[name="tulostukseen[]"]'))
-                        .map(inp => inp.value.trim())
-                        .filter(Boolean);
-                    orders.forEach(orderNo => {
-                        claimOrder(orderNo, pickerName, 'tulostettu');
-                    });
-                });
-            }
-        }
+        // Tulostustiedot haetaan AINA palvelimen todellisesta suorituskykylokista (suorituskykyloki.php).
+        // Emme koskaan tee paikallisia arvauksia tai merkitse tilauksia lomakkeen submit-tapahtumista,
+        // jotta suodatus, haku tai sivunvaihto ei koskaan vääristä tulostajatietoja.
     }
 
     // =========================================================================
