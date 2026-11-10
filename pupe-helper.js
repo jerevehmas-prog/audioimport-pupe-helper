@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      6.2
+// @version      6.3
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, varastopaikkasiirrot, työnjako ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -2133,7 +2133,7 @@ async function fetchProductLocations(tuoteno) {
                 btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'ai-pikasiirto-btn';
-                btn.innerHTML = '📦 Tee varastopaikkasiirto';
+                btn.innerHTML = '📦 Varastopaikkasiirto';
                 btn.title = `Pikasiirto hyllystä toiseen: ${sku}`;
                 btn.onclick = (e) => {
                     e.preventDefault();
@@ -2147,7 +2147,7 @@ async function fetchProductLocations(tuoteno) {
                     paikkaTd.appendChild(btn);
                 }
             } else {
-                btn.innerHTML = '📦 Tee varastopaikkasiirto';
+                btn.innerHTML = '📦 Varastopaikkasiirto';
                 if (paikkaSelect && btn.previousElementSibling !== paikkaSelect) {
                     paikkaSelect.insertAdjacentElement('afterend', btn);
                 }
@@ -2156,22 +2156,24 @@ async function fetchProductLocations(tuoteno) {
             btn.style.display = 'inline-flex';
             btn.style.alignItems = 'center';
             btn.style.justifyContent = 'center';
-            btn.style.gap = '4px';
-            btn.style.marginLeft = '6px';
+            btn.style.gap = '3px';
+            btn.style.marginLeft = '4px';
             btn.style.marginTop = '0';
             btn.style.marginBottom = '0';
-            btn.style.padding = '0 10px';
-            btn.style.height = '28px';
-            btn.style.lineHeight = '26px';
+            btn.style.padding = '0 6px';
+            btn.style.height = '23px';
+            btn.style.minHeight = '23px';
+            btn.style.maxHeight = '23px';
+            btn.style.lineHeight = '21px';
             btn.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
-            btn.style.fontSize = '11px';
+            btn.style.fontSize = '10px';
             btn.style.fontWeight = '700';
             btn.style.color = '#ffffff';
             btn.style.background = '#4f46e5';
             btn.style.border = '1px solid #4338ca';
-            btn.style.borderRadius = '4px';
+            btn.style.borderRadius = '3px';
             btn.style.cursor = 'pointer';
-            btn.style.boxShadow = '0 1px 2px rgba(79, 70, 229, 0.25)';
+            btn.style.boxShadow = '0 1px 2px rgba(79, 70, 229, 0.2)';
             btn.style.verticalAlign = 'middle';
             btn.style.whiteSpace = 'nowrap';
             btn.style.boxSizing = 'border-box';
@@ -2557,10 +2559,9 @@ async function fetchProductLocations(tuoteno) {
             }
 
             @media (pointer: coarse), (max-width: 1024px) {
-                /* Helpotetaan rivin kuittausta ja pikasiirtoa tablet-kosketusnäytöillä */
+                /* Helpotetaan rivin kuittausta tablet-kosketusnäytöillä */
                 button.kerattavatrivit,
-                input.kerattavatrivit,
-                .ai-pikasiirto-btn {
+                input.kerattavatrivit {
                     min-height: 40px !important;
                     min-width: 68px !important;
                     font-size: 13px !important;
@@ -2571,6 +2572,24 @@ async function fetchProductLocations(tuoteno) {
                     padding-top: 8px !important;
                     padding-bottom: 8px !important;
                 }
+            }
+
+            .ai-pikasiirto-btn {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 3px !important;
+                height: 23px !important;
+                min-height: 23px !important;
+                max-height: 23px !important;
+                line-height: 21px !important;
+                padding: 0 6px !important;
+                font-size: 10px !important;
+                font-weight: 700 !important;
+                margin-left: 4px !important;
+                border-radius: 3px !important;
+                vertical-align: middle !important;
+                box-sizing: border-box !important;
             }
 
             /* ========================================================================= */
