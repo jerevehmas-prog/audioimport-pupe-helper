@@ -20,6 +20,11 @@ Pupesoft ERP -keräysjonon automaattinen älykkäämpi järjestely ja priorisoin
   - Joka toinen tuoterivi pehmeällä harmaalla taustalla erottamisen helpottamiseksi.
   - Kerätyt rivit korostuvat välittömästi smaragdinvihreällä (`#d1fae5`), 8px vihreällä huomiopalkilla ja vihreällä `✓ Päivitä` -napilla.
   - Keräyskommentit on sidottu saumattomasti ja selkeästi yläpuoliseen tuotteeseen ilman ylimääräisiä häiritseviä tekstejä (sisennys, nuoli ja varoituskolmio `↳ ⚠️`).
+- 🔍 **Tuotekortin pikanäkymä (Hover & Tablet-tuki - v7.1):**
+  - **Globaali toiminta:** Toimii kaikilla Pupesoftin sivuilla, joilla tuotenumero esiintyy linkkinä (keräys, tulostusjono, tilauskäsittely, saapuminen, ostotilaukset).
+  - **Kattavat hintatiedot ja saldot:** Myyntihinta, Kehahinta, Vihahinta (ostopäivämäärällä) sekä kaikki varastopaikat hyllykohtaisine saldoineen (Vapaana / Kokonaissaldo / Varattu).
+  - **PC & Kosketusnäyttötuki:** Tietokoneella hiiren leijutus (200 ms), tableteilla sorminapautus (tap), selkeä ✕-sulkunappi ja sulkeutuminen ulkopuolelle napautettaessa.
+  - **Stale-While-Revalidate -taustapäivitys:** Avaa tiedot välittömästi (0 ms) ja päivittää muuttuneet hinnat ja saldot lennosta taustakyselyllä. Alalaidassa tarkan hakuhetken aikaleima ja manuaalinen `↻ Päivitä` -painike.
 - ☁️ **Reaaliaikainen pilvipäivitys:** Laitteille asennetaan kevyt latausohjelma (`loader.user.js`), joka noutaa uusimman koodin suoraan tästä repositoriosta joka kerta kun sivu ladataan.
 
 ---
