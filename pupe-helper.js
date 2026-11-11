@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      7.1
-// @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, varastopaikkasiirrot, saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
+// @version      7.2
+// @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, varastopaikkasiirrot, siistitty saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
 // @match        https://*.ahkio.com/*
@@ -5499,47 +5499,41 @@ async function fetchProductLocations(tuoteno) {
 
 
     // =========================================================================
-    // OSA 5: TAVARAN SAAPUMINEN & KOHDISTUS (keikka.php - v7.0)
+    // OSA 5: TAVARAN SAAPUMINEN & KOHDISTUS (keikka.php - v7.2 Siistitty)
     // =========================================================================
     function alustaSaapuminenSivu() {
         if (document.getElementById('ai-saapuminen-topbar')) return;
 
-        // 1. Varmistetaan että ollaan Saapumisen rivien kohdistussivulla (keikka.php)
-            function isArrivalMatchingPage() {
-                const hasTable = Boolean(document.querySelector('table.ostorivien_kohdistus'));
-                const hasQtyInput = Boolean(document.querySelector('input[name^="rivi_kpl["]'));
-                const isKeikkaUrl = location.pathname.includes('keikka.php') || location.search.includes('toiminto=kohdista');
-                return (hasTable || hasQtyInput) && (isKeikkaUrl || document.querySelector('font.head')?.textContent.includes('Saapumi') || location.hostname.includes('127.0.0.1') || location.hostname.includes('localhost'));
-            }
-        
+            // 1. Tunnistetaan saapumissivu
+            const hasTable = Boolean(document.querySelector('table.ostorivien_kohdistus'));
+            const hasQtyInput = Boolean(document.querySelector('input[name^="rivi_kpl["]'));
+            if (!hasTable && !hasQtyInput) return;
+
+            console.log('[Pupe-Saapuminen] Alustetaan siistitty saapumislaajennus...');
+
             // =========================================================================
-            // ASETUKSET JA TILA
+            // ASETUKSET & TILA
             // =========================================================================
             const STORAGE_KEY_SOUND = 'pupe_saapuminen_sound_enabled';
             let soundEnabled = localStorage.getItem(STORAGE_KEY_SOUND) !== 'false';
-        
-            // EAN -> SKU välimuisti
             const eanToSkuMap = new Map();
-            let isPrefetchingEans = false;
-        
+
             // Skanneripuskuri (Keyboard Wedge)
             let scanBuffer = '';
             let lastKeyTime = 0;
-            const SCANNER_CHAR_INTERVAL_MS = 85; // Tyypillinen viivakoodinlukijan merkkiväli < 50ms
-        
-            // Web Audio konteksti
+            const SCANNER_CHAR_INTERVAL_MS = 85;
+
+            // Web Audio
             let audioCtx = null;
             function getAudioContext() {
                 if (!audioCtx) {
                     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                     if (AudioContextClass) audioCtx = new AudioContextClass();
                 }
-                if (audioCtx && audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
                 return audioCtx;
             }
-        
+
             function playTone(freq, durationMs, type = 'sine', startTimeOffset = 0, gainLevel = 0.15) {
                 if (!soundEnabled) return;
                 try {
@@ -5556,286 +5550,204 @@ async function fetchProductLocations(tuoteno) {
                     gain.connect(ctx.destination);
                     osc.start(ctx.currentTime + startTimeOffset);
                     osc.stop(ctx.currentTime + startTimeOffset + (durationMs / 1000) + 0.05);
-                } catch (e) {
-                    console.warn('[Pupe-Saapuminen] Äänen toisto epäonnistui:', e);
-                }
+                } catch (e) {}
             }
-        
+
             function playSuccessChime() {
-                playTone(587.33, 90, 'triangle', 0, 0.18);      // D5
-                playTone(880.00, 150, 'triangle', 0.08, 0.22);  // A5
+                playTone(587.33, 80, 'triangle', 0, 0.16);
+                playTone(880.00, 130, 'triangle', 0.07, 0.20);
             }
-        
-            function playWarningBeep() {
-                playTone(440, 80, 'sine', 0, 0.15);
-                playTone(440, 90, 'sine', 0.12, 0.15);
-            }
-        
+
             function playErrorBuzzer() {
-                playTone(220, 160, 'sawtooth', 0, 0.22);
-                playTone(164.81, 200, 'sawtooth', 0.08, 0.25);
+                playTone(220, 140, 'sawtooth', 0, 0.2);
+                playTone(164.81, 180, 'sawtooth', 0.07, 0.22);
             }
-        
+
             // =========================================================================
-            // VISUAALISET TYYLIT
+            // TYYLIT
             // =========================================================================
             function injectStyles() {
                 if (document.getElementById('ai-saapuminen-styles')) return;
                 const st = document.createElement('style');
                 st.id = 'ai-saapuminen-styles';
                 st.textContent = `
-                    /* Yläpalkki ja pikahaku */
+                    /* Kompakti ja siisti yläpalkki, sijoitettu taulukon yläpuolelle */
                     #ai-saapuminen-topbar {
-                        position: sticky;
-                        top: 0;
-                        z-index: 9999;
                         background: #ffffff;
-                        border-bottom: 2px solid #0284c7;
-                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-                        padding: 10px 16px;
-                        margin: 0 0 14px 0;
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                        box-sizing: border-box;
-                    }
-        
-                    .ai-topbar-content {
+                        border: 1px solid #cbd5e1;
+                        border-radius: 6px;
+                        padding: 6px 12px;
+                        margin: 8px 0 10px 0;
                         display: flex;
                         align-items: center;
                         gap: 12px;
-                        flex-wrap: wrap;
+                        box-sizing: border-box;
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
                     }
-        
-                    .ai-search-box-wrap {
+
+                    .ai-search-wrap {
                         position: relative;
-                        flex: 1;
-                        min-width: 260px;
-                        max-width: 600px;
+                        flex: 0 0 340px;
+                        max-width: 100%;
                     }
-        
+
                     .ai-search-input {
                         width: 100%;
-                        height: 44px;
-                        padding: 8px 36px 8px 40px;
-                        font-size: 15px;
-                        font-weight: 500;
-                        color: #0f172a;
+                        height: 32px;
+                        padding: 4px 28px 4px 28px;
+                        font-size: 13px;
+                        color: #1e293b;
                         background: #f8fafc;
-                        border: 2px solid #cbd5e1;
-                        border-radius: 8px;
+                        border: 1px solid #94a3b8;
+                        border-radius: 4px;
                         box-sizing: border-box;
                         outline: none;
-                        transition: all 0.2s ease;
-                        touch-action: manipulation;
+                        transition: border-color 0.15s, box-shadow 0.15s;
                     }
-        
+
                     .ai-search-input:focus {
                         background: #ffffff;
                         border-color: #0284c7;
-                        box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+                        box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
                     }
-        
+
                     .ai-search-icon {
                         position: absolute;
-                        left: 12px;
+                        left: 8px;
                         top: 50%;
                         transform: translateY(-50%);
-                        font-size: 16px;
+                        font-size: 13px;
                         color: #64748b;
                         pointer-events: none;
                     }
-        
+
                     .ai-search-clear {
                         position: absolute;
-                        right: 10px;
+                        right: 6px;
                         top: 50%;
                         transform: translateY(-50%);
-                        width: 24px;
-                        height: 24px;
-                        border-radius: 50%;
+                        width: 18px;
+                        height: 18px;
                         border: none;
                         background: #e2e8f0;
                         color: #475569;
-                        font-size: 13px;
+                        border-radius: 50%;
+                        font-size: 11px;
                         font-weight: bold;
+                        cursor: pointer;
                         display: flex;
                         align-items: center;
                         justify-content: center;
-                        cursor: pointer;
-                        touch-action: manipulation;
+                        padding: 0;
                     }
-        
+
                     .ai-badge {
                         display: inline-flex;
                         align-items: center;
-                        gap: 6px;
-                        padding: 6px 12px;
-                        border-radius: 6px;
-                        font-size: 13px;
-                        font-weight: 600;
+                        gap: 5px;
+                        padding: 3px 8px;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        font-weight: 500;
                         user-select: none;
                     }
-        
+
                     .ai-badge-scanner {
-                        background: #ecfdf5;
-                        color: #065f46;
-                        border: 1px solid #a7f3d0;
+                        background: #f0fdf4;
+                        color: #15803d;
+                        border: 1px solid #bbf7d0;
                     }
-        
+
                     .ai-badge-count {
-                        background: #f1f5f9;
-                        color: #334155;
-                        border: 1px solid #cbd5e1;
+                        background: #f8fafc;
+                        color: #475569;
+                        border: 1px solid #e2e8f0;
                     }
-        
-                    .ai-topbar-btn {
-                        height: 42px;
-                        padding: 0 14px;
-                        border-radius: 6px;
+
+                    .ai-sound-btn {
+                        margin-left: auto;
+                        height: 30px;
+                        padding: 0 10px;
+                        border-radius: 4px;
                         border: 1px solid #cbd5e1;
                         background: #f8fafc;
                         color: #334155;
-                        font-size: 13px;
-                        font-weight: 600;
-                        cursor: pointer;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
-                        touch-action: manipulation;
-                        transition: all 0.15s ease;
-                    }
-        
-                    .ai-topbar-btn:hover {
-                        background: #e2e8f0;
-                    }
-        
-                    /* Kohdistuksen ja skannauksen korostus */
-                    @keyframes aiRowGlow {
-                        0% { background-color: #fef08a !important; box-shadow: 0 0 12px rgba(234, 179, 8, 0.6); }
-                        50% { background-color: #bbf7d0 !important; box-shadow: 0 0 16px rgba(34, 197, 94, 0.7); }
-                        100% { background-color: #ecfdf5 !important; }
-                    }
-        
-                    .ai-row-highlight {
-                        animation: aiRowGlow 1.5s ease-out forwards !important;
-                    }
-        
-                    /* Rivilisäykset: Varastopaikkapainike ja määräsäätimet */
-                    .ai-loc-btn {
-                        background: #eff6ff;
-                        color: #1d4ed8;
-                        border: 1px solid #bfdbfe;
-                        padding: 4px 8px;
-                        border-radius: 6px;
                         font-size: 12px;
-                        font-weight: 700;
                         cursor: pointer;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 4px;
-                        margin-top: 3px;
-                        min-height: 32px;
-                        touch-action: manipulation;
-                        transition: background 0.15s, border-color 0.15s;
                     }
-        
-                    .ai-loc-btn:hover {
-                        background: #dbeafe;
-                        border-color: #93c5fd;
-                    }
-        
-                    .ai-qty-btn-group {
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 3px;
-                        margin-left: 6px;
-                        vertical-align: middle;
-                    }
-        
-                    .ai-qty-btn {
-                        min-width: 32px;
-                        height: 32px;
-                        padding: 0 6px;
-                        border-radius: 4px;
-                        border: 1px solid #cbd5e1;
-                        background: #f1f5f9;
-                        color: #1e293b;
-                        font-size: 13px;
-                        font-weight: 700;
-                        cursor: pointer;
-                        display: inline-flex;
-                        align-items: center;
-                        justify-content: center;
-                        touch-action: manipulation;
-                        user-select: none;
-                    }
-        
-                    .ai-qty-btn:hover {
+
+                    .ai-sound-btn:hover {
                         background: #e2e8f0;
                     }
-        
-                    .ai-qty-full-btn {
-                        height: 32px;
-                        padding: 0 8px;
-                        border-radius: 4px;
-                        border: 1px solid #bfdbfe;
-                        background: #eff6ff;
-                        color: #1e40af;
+
+                    /* Hyllypaikan siisti tekstimerkki solussa */
+                    .ai-loc-badge {
+                        display: inline-block;
+                        padding: 1px 5px;
                         font-size: 11px;
-                        font-weight: 700;
+                        font-weight: 600;
+                        color: #0284c7;
+                        background: #f0f9ff;
+                        border: 1px solid #bae6fd;
+                        border-radius: 4px;
                         cursor: pointer;
-                        display: inline-flex;
-                        align-items: center;
-                        touch-action: manipulation;
-                    }
-        
-                    .ai-confirm-row-btn {
-                        height: 36px;
-                        padding: 0 12px;
-                        border-radius: 6px;
-                        border: none;
-                        background: #10b981;
-                        color: #ffffff;
-                        font-size: 12px;
-                        font-weight: 700;
-                        cursor: pointer;
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 5px;
-                        touch-action: manipulation;
-                        transition: background 0.15s ease;
+                        line-height: 1.3;
+                        margin-top: 2px;
+                        text-decoration: none;
+                        transition: all 0.15s;
                         white-space: nowrap;
                     }
-        
-                    .ai-confirm-row-btn:hover {
-                        background: #059669;
+
+                    .ai-loc-badge:hover {
+                        background: #e0f2fe;
+                        border-color: #0284c7;
+                        color: #0369a1;
                     }
-        
-                    /* Varastopaikkapopup */
+
+                    .ai-loc-badge.ai-loc-empty {
+                        color: #d97706;
+                        background: #fffbeb;
+                        border-color: #fde68a;
+                    }
+
+                    /* Skannatun rivin pehmeä korostus */
+                    @keyframes aiRowGlow {
+                        0% { background-color: #fef08a !important; }
+                        50% { background-color: #bbf7d0 !important; }
+                        100% { background-color: #ecfdf5 !important; }
+                    }
+
+                    .ai-row-highlight {
+                        animation: aiRowGlow 1.2s ease-out forwards !important;
+                    }
+
+                    /* Popup varastopaikkojen valintaan */
                     #ai-loc-popup {
                         position: absolute;
                         z-index: 100000;
                         background: #ffffff;
                         border: 1px solid #94a3b8;
-                        border-radius: 10px;
-                        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
-                        padding: 14px;
-                        width: 320px;
+                        border-radius: 8px;
+                        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
+                        padding: 12px;
+                        width: 310px;
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                        font-size: 13px;
+                        font-size: 12px;
                         color: #1e293b;
                     }
-        
+
                     .ai-loc-popup-header {
                         font-weight: 700;
-                        font-size: 14px;
+                        font-size: 13px;
                         margin-bottom: 8px;
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
                         border-bottom: 1px solid #e2e8f0;
-                        padding-bottom: 6px;
+                        padding-bottom: 5px;
                     }
-        
+
                     .ai-loc-popup-close {
                         border: none;
                         background: none;
@@ -5844,117 +5756,91 @@ async function fetchProductLocations(tuoteno) {
                         color: #64748b;
                         padding: 0 4px;
                     }
-        
+
                     .ai-loc-item {
-                        padding: 8px 10px;
-                        border-radius: 6px;
+                        padding: 6px 8px;
+                        border-radius: 4px;
                         border: 1px solid #e2e8f0;
-                        margin-bottom: 6px;
+                        margin-bottom: 5px;
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
                         background: #f8fafc;
                         cursor: pointer;
-                        transition: all 0.15s ease;
                     }
-        
+
                     .ai-loc-item:hover {
                         background: #eff6ff;
                         border-color: #60a5fa;
                     }
-        
+
                     .ai-loc-item.ai-loc-current {
                         border-color: #10b981;
                         background: #ecfdf5;
                     }
-        
+
                     .ai-loc-new-box {
-                        margin-top: 10px;
-                        padding-top: 10px;
+                        margin-top: 8px;
+                        padding-top: 8px;
                         border-top: 1px solid #e2e8f0;
                     }
-        
+
                     .ai-loc-input {
                         width: 100%;
-                        height: 38px;
-                        padding: 6px 10px;
-                        font-size: 13px;
+                        height: 32px;
+                        padding: 4px 8px;
+                        font-size: 12px;
                         border: 1px solid #cbd5e1;
-                        border-radius: 6px;
+                        border-radius: 4px;
                         box-sizing: border-box;
-                        margin-bottom: 8px;
+                        margin-bottom: 6px;
                     }
-        
+
                     .ai-loc-save-btn {
                         width: 100%;
-                        height: 38px;
+                        height: 32px;
                         background: #0284c7;
                         color: #ffffff;
-                        font-weight: 700;
+                        font-weight: 600;
                         border: none;
-                        border-radius: 6px;
+                        border-radius: 4px;
                         cursor: pointer;
-                        touch-action: manipulation;
                     }
-        
+
                     .ai-loc-save-btn:hover {
                         background: #0369a1;
                     }
-        
-                    /* Toast */
+
+                    /* Toast-ilmoitus */
                     #ai-saapuminen-toast {
                         position: fixed;
-                        bottom: 24px;
-                        right: 24px;
+                        bottom: 20px;
+                        right: 20px;
                         z-index: 100001;
                         background: #0f172a;
                         color: #ffffff;
-                        padding: 12px 18px;
-                        border-radius: 8px;
-                        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-                        font-size: 13px;
+                        padding: 8px 14px;
+                        border-radius: 6px;
+                        box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+                        font-size: 12px;
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                        border-left: 4px solid #10b981;
+                        border-left: 3px solid #10b981;
                         opacity: 0;
-                        transform: translateY(10px);
+                        transform: translateY(8px);
                         transition: opacity 0.2s, transform 0.2s;
                         pointer-events: none;
                     }
-        
+
                     #ai-saapuminen-toast.ai-show {
                         opacity: 1;
                         transform: translateY(0);
                     }
-        
-                    /* Tablet-optimoinnit */
-                    @media (max-width: 1100px) {
-                        .ai-search-input {
-                            font-size: 16px; /* Estää iOS automaattizoomausta */
-                        }
-                        .ai-loc-btn {
-                            min-height: 40px;
-                            padding: 6px 10px;
-                        }
-                        .ai-qty-btn {
-                            min-width: 38px;
-                            height: 38px;
-                            font-size: 15px;
-                        }
-                        .ai-confirm-row-btn {
-                            height: 40px;
-                            padding: 0 14px;
-                        }
-                        input[type="checkbox"][name^="rivi_valitut_tunnukset"] {
-                            transform: scale(1.3);
-                            margin: 4px;
-                        }
-                    }
                 `;
                 document.head.appendChild(st);
             }
-        
+
             // =========================================================================
-            // TOAST-ILMOITUS
+            // TOAST
             // =========================================================================
             let toastTimeout = null;
             function showToast(text, isError = false) {
@@ -5970,39 +5856,32 @@ async function fetchProductLocations(tuoteno) {
                 toast.classList.add('ai-show');
                 toastTimeout = setTimeout(() => {
                     toast.classList.remove('ai-show');
-                }, 3000);
+                }, 2500);
             }
-        
+
             // =========================================================================
-            // SAAPUMISRIVIEN PARSINTA JA TUNNISTUS
+            // SAAPUMISRIVIEN PARSINTA
             // =========================================================================
             function getArrivalRows() {
                 const rows = Array.from(document.querySelectorAll('table.ostorivien_kohdistus tr.aktiivi, tr.aktiivi'));
                 const parsed = [];
-        
+
                 for (const row of rows) {
-                    // Etsitään tuotenumero
                     const skuLink = row.querySelector('a[onclick*="tuoteno="], a[href*="tuoteno="]');
                     let sku = skuLink ? skuLink.textContent.trim() : '';
                     if (!sku && row.children.length > 2) {
-                        // Varaus: td[2] teksti ennen rivinvaihtoa
                         const rawTd2 = row.children[2].innerText || row.children[2].textContent;
                         sku = rawTd2.split('\n')[0].trim();
                     }
                     if (!sku) continue;
-        
-                    // Etsitään määräkenttä
+
                     const qtyInput = row.querySelector('input[name^="rivi_kpl["]');
                     if (!qtyInput) continue;
-        
-                    // Rivi-id
+
                     const idMatch = qtyInput.name.match(/\[(\d+)\]/);
                     const riviId = idMatch ? idMatch[1] : '';
-        
-                    // Checkbox
                     const checkbox = row.querySelector('input[type="checkbox"][name^="rivi_valitut_tunnukset"]');
-        
-                    // Varastopaikka ja tilausnro td[1]
+
                     let loc = '';
                     let orderNo = '';
                     const td1 = row.children[1];
@@ -6013,11 +5892,10 @@ async function fetchProductLocations(tuoteno) {
                             loc = parts[1].replace(/<[^>]+>/g, '').trim();
                         }
                     }
-        
-                    // Nimitys td[3]
+
                     const nameTd = row.children[3];
                     const nimitys = nameTd ? nameTd.textContent.trim() : '';
-        
+
                     parsed.push({
                         element: row,
                         sku: sku.toUpperCase(),
@@ -6031,312 +5909,284 @@ async function fetchProductLocations(tuoteno) {
                         td1
                     });
                 }
-        
+
                 return parsed;
             }
-        
+
             // =========================================================================
-            // YLÄPALKKI JA PIKAHAKU
+            // YLÄPALKKI & PIKAHAKU
             // =========================================================================
             let arrivalRowsCache = [];
-        
+
             function buildTopBar() {
                 if (document.getElementById('ai-saapuminen-topbar')) return;
-        
+
                 arrivalRowsCache = getArrivalRows();
-        
+
                 const topBar = document.createElement('div');
                 topBar.id = 'ai-saapuminen-topbar';
-        
+
                 topBar.innerHTML = `
-                    <div class="ai-topbar-content">
-                        <div class="ai-search-box-wrap">
-                            <span class="ai-search-icon">🔍</span>
-                            <input type="text" class="ai-search-input" id="ai-arrival-search" 
-                                   placeholder="Hae tuotetta, nimitystä tai hyllyä... (tai piippaa viivakoodi)" 
-                                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-                            <button type="button" class="ai-search-clear" id="ai-arrival-clear" style="display:none;" title="Tyhjennä haku">✕</button>
-                        </div>
-                        
-                        <div class="ai-badge ai-badge-scanner">
-                            <span>🟢</span> Skanneri valmiina
-                        </div>
-        
-                        <div class="ai-badge ai-badge-count" id="ai-arrival-count">
-                            Rivejä: <strong>${arrivalRowsCache.length}</strong>
-                        </div>
-        
-                        <button type="button" class="ai-topbar-btn" id="ai-sound-toggle" title="Äänipalaute päälle/pois">
-                            ${soundEnabled ? '🔊 Äänet ON' : '🔇 Äänet OFF'}
-                        </button>
+                    <div class="ai-search-wrap">
+                        <span class="ai-search-icon">🔍</span>
+                        <input type="text" class="ai-search-input" id="ai-arrival-search" 
+                               placeholder="Pikahaku tai skannaa viivakoodi..." 
+                               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                        <button type="button" class="ai-search-clear" id="ai-arrival-clear" style="display:none;" title="Tyhjennä haku">✕</button>
                     </div>
+
+                    <div class="ai-badge ai-badge-scanner">
+                        <span>🟢</span> Skanneri valmiina
+                    </div>
+
+                    <div class="ai-badge ai-badge-count" id="ai-arrival-count">
+                        Rivejä: <strong>${arrivalRowsCache.length}</strong>
+                    </div>
+
+                    <button type="button" class="ai-sound-btn" id="ai-sound-toggle">
+                        ${soundEnabled ? '🔊 Äänet' : '🔇 Mykkä'}
+                    </button>
                 `;
-        
-                // Sijoitetaan sivulle ennen taulukkoa tai pääformia
-                const targetAnchor = document.querySelector('form[name="paaformi"]') || document.querySelector('table.ostorivien_kohdistus') || document.body.firstChild;
-                if (targetAnchor && targetAnchor.parentNode) {
-                    targetAnchor.parentNode.insertBefore(topBar, targetAnchor);
+
+                // TÄRKEÄ KORJAUS: Etsitään taulukko ja sijoitetaan yläpalkki AINA taulukon ETEEN (ei taulukon sisään!)
+                const targetTable = document.querySelector('table.ostorivien_kohdistus') || document.querySelector('tr.aktiivi')?.closest('table');
+                if (targetTable && targetTable.parentNode) {
+                    targetTable.parentNode.insertBefore(topBar, targetTable);
                 } else {
                     document.body.insertBefore(topBar, document.body.firstChild);
                 }
-        
-                // Tapahtumankuuntelijat
-                const searchInput = document.getElementById('ai-arrival-search');
-                const clearBtn = document.getElementById('ai-arrival-clear');
-                const soundBtn = document.getElementById('ai-sound-toggle');
-        
+
+                // Tapahtumat
+                const searchInput = topBar.querySelector('#ai-arrival-search');
+                const clearBtn = topBar.querySelector('#ai-arrival-clear');
+                const soundBtn = topBar.querySelector('#ai-sound-toggle');
+                const countEl = topBar.querySelector('#ai-arrival-count');
+
                 searchInput.addEventListener('input', () => {
-                    const query = searchInput.value.trim().toLowerCase();
+                    const query = searchInput.value.trim().toUpperCase();
                     clearBtn.style.display = query ? 'flex' : 'none';
-                    filterRows(query);
+                    filterRows(query, countEl);
                 });
-        
+
                 clearBtn.addEventListener('click', () => {
                     searchInput.value = '';
                     clearBtn.style.display = 'none';
-                    filterRows('');
+                    filterRows('', countEl);
                     searchInput.focus();
                 });
-        
+
                 soundBtn.addEventListener('click', () => {
                     soundEnabled = !soundEnabled;
                     localStorage.setItem(STORAGE_KEY_SOUND, String(soundEnabled));
-                    soundBtn.textContent = soundEnabled ? '🔊 Äänet ON' : '🔇 Äänet OFF';
-                    if (soundEnabled) playSuccessChime();
+                    soundBtn.textContent = soundEnabled ? '🔊 Äänet' : '🔇 Mykkä';
+                    showToast(soundEnabled ? '🔊 Äänipalaute päällä' : '🔇 Äänipalaute pois');
                 });
-        
-                // Enter hakukentässä kohdistaa ensimmäiseen näkyvään riviin
-                searchInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const firstVisible = arrivalRowsCache.find(r => r.element.style.display !== 'none');
-                        if (firstVisible) {
-                            selectRowForReceiving(firstVisible);
+
+                // Pikanäppäin Ctrl+F / Cmd+F kohdistaa suoraan tähän hakukenttään
+                window.addEventListener('keydown', (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+                        if (document.activeElement !== searchInput) {
+                            e.preventDefault();
+                            searchInput.focus();
+                            searchInput.select();
                         }
                     }
                 });
             }
-        
-            // Reaaliaikainen taulukon suodatus
-            function filterRows(query) {
-                let visibleCount = 0;
+
+            function filterRows(query, countEl) {
+                let matchCount = 0;
                 for (const item of arrivalRowsCache) {
                     if (!query) {
                         item.element.style.display = '';
-                        visibleCount++;
+                        matchCount++;
                         continue;
                     }
-        
-                    const matchSku = item.sku.toLowerCase().includes(query);
-                    const matchName = item.nimitys.toLowerCase().includes(query);
-                    const matchLoc = item.loc.toLowerCase().includes(query);
-                    const matchOrder = item.orderNo.toLowerCase().includes(query);
-        
-                    if (matchSku || matchName || matchLoc || matchOrder) {
+
+                    const match = item.sku.includes(query) ||
+                                  item.nimitys.toUpperCase().includes(query) ||
+                                  item.loc.toUpperCase().includes(query) ||
+                                  item.orderNo.toUpperCase().includes(query);
+
+                    if (match) {
                         item.element.style.display = '';
-                        visibleCount++;
+                        matchCount++;
                     } else {
                         item.element.style.display = 'none';
                     }
                 }
-        
-                const countBadge = document.getElementById('ai-arrival-count');
-                if (countBadge) {
-                    countBadge.innerHTML = query
-                        ? `Löytyi: <strong>${visibleCount}</strong> / ${arrivalRowsCache.length}`
-                        : `Rivejä: <strong>${arrivalRowsCache.length}</strong>`;
+
+                if (countEl) {
+                    if (!query) {
+                        countEl.innerHTML = `Rivejä: <strong>${arrivalRowsCache.length}</strong>`;
+                    } else {
+                        countEl.innerHTML = `Löytyi: <strong>${matchCount}</strong> / ${arrivalRowsCache.length}`;
+                    }
                 }
             }
-        
+
             // =========================================================================
-            // RIVIN KOHDISTUS SKANNAUKSESTA / HAUSTA (EI KUITATA AUTOMAATTISESTI!)
+            // VIIVAKOODIN LUKU & KOHDISTUS
             // =========================================================================
-            function selectRowForReceiving(rowItem) {
-                if (!rowItem || !rowItem.element) return;
-        
-                // 1. Äänipalaute
-                playSuccessChime();
-        
-                // 2. Skrollataan rivi näkyviin keskelle näyttöä
+            function handleGlobalKeydown(e) {
+                const target = e.target;
+                const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+
+                // Jos ollaan hakukentässä ja painetaan enter
+                if (target && target.id === 'ai-arrival-search' && e.key === 'Enter') {
+                    const query = target.value.trim().toUpperCase();
+                    if (query) {
+                        const found = arrivalRowsCache.find(r => r.sku === query || r.sku.startsWith(query));
+                        if (found) {
+                            e.preventDefault();
+                            focusArrivalRow(found);
+                        }
+                    }
+                    return;
+                }
+
+                const now = Date.now();
+                const timeDiff = now - lastKeyTime;
+                lastKeyTime = now;
+
+                if (timeDiff > SCANNER_CHAR_INTERVAL_MS && scanBuffer.length > 0) {
+                    scanBuffer = '';
+                }
+
+                if (e.key === 'Enter') {
+                    if (scanBuffer.length >= 3) {
+                        e.preventDefault();
+                        const code = scanBuffer.trim();
+                        scanBuffer = '';
+                        processScannedBarcode(code);
+                        return;
+                    }
+                    scanBuffer = '';
+                    return;
+                }
+
+                if (e.key.length === 1) {
+                    scanBuffer += e.key;
+                }
+            }
+
+            async function processScannedBarcode(rawCode) {
+                const cleaned = rawCode.trim().toUpperCase();
+                console.log('[Pupe-Saapuminen] Skannattu koodi:', cleaned);
+
+                // 1. Suora täsmäys tuotenumeroon
+                let matched = arrivalRowsCache.find(r => r.sku === cleaned);
+
+                // 2. Täsmäys EAN-välimuistiin
+                if (!matched && eanToSkuMap.has(cleaned)) {
+                    const sku = eanToSkuMap.get(cleaned);
+                    matched = arrivalRowsCache.find(r => r.sku === sku);
+                }
+
+                // 3. Osatäsmäys
+                if (!matched) {
+                    matched = arrivalRowsCache.find(r => r.sku.startsWith(cleaned) || cleaned.startsWith(r.sku));
+                }
+
+                if (matched) {
+                    focusArrivalRow(matched);
+                    return;
+                }
+
+                // 4. Taustahaku tuotteen EAN-koodilla tuote.php:sta
+                try {
+                    const res = await fetch(`/tuote.php?hae=${encodeURIComponent(cleaned)}`, { credentials: 'include' });
+                    if (res.ok) {
+                        const text = await res.text();
+                        for (const row of arrivalRowsCache) {
+                            if (text.includes(row.rawSku)) {
+                                eanToSkuMap.set(cleaned, row.sku);
+                                focusArrivalRow(row);
+                                return;
+                            }
+                        }
+                    }
+                } catch (err) {}
+
+                playErrorBuzzer();
+                showToast(`❌ Tuotetta ei löytynyt saapumiselta: ${cleaned}`, true);
+            }
+
+            function focusArrivalRow(rowItem) {
+                // Palautetaan haku jos rivi oli piilotettuna
+                const searchInput = document.getElementById('ai-arrival-search');
+                if (searchInput && searchInput.value) {
+                    searchInput.value = '';
+                    filterRows('', document.getElementById('ai-arrival-count'));
+                }
+
+                // Skrollaus keskelle
                 rowItem.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-                // 3. Poistetaan vanhat korostukset ja lisätään uusi hehku
-                document.querySelectorAll('.ai-row-highlight').forEach(el => el.classList.remove('ai-row-highlight'));
+
+                // Valoefekti
+                rowItem.element.classList.remove('ai-row-highlight');
+                void rowItem.element.offsetWidth;
                 rowItem.element.classList.add('ai-row-highlight');
-        
-                // 4. Kohdistetaan kursori määräkenttään ja valitaan luku
+
+                // Kohdistetaan suoraan määräkenttään ja valitaan teksti (EI kuitata automaattisesti!)
                 if (rowItem.qtyInput) {
                     rowItem.qtyInput.focus();
                     rowItem.qtyInput.select();
                 }
-        
-                // 5. Toast
-                showToast(`🔍 Valittu: ${rowItem.rawSku} (${rowItem.loc || 'Ei paikkaa'}) - Tarkista määrä!`);
+
+                playSuccessChime();
+                showToast(`🔍 Löydetty: ${rowItem.rawSku} (Määrä: ${rowItem.qtyInput ? rowItem.qtyInput.value : ''} kpl)`);
             }
-        
+
             // =========================================================================
-            // VIIVAKOODINLUKIKAN GLOBAALI KUUNTELIJA (KEYBOARD WEDGE)
-            // =========================================================================
-            function handleGlobalKeydown(e) {
-                // Sallitaan skannaus aina, paitsi jos käyttäjä on kirjoittamassa hakukenttään normaalilla nopeudella
-                const activeEl = document.activeElement;
-                const isSearchField = activeEl && activeEl.id === 'ai-arrival-search';
-                const isQtyInput = activeEl && activeEl.name && activeEl.name.startsWith('rivi_kpl');
-        
-                const now = Date.now();
-                const timeDiff = now - lastKeyTime;
-                lastKeyTime = now;
-        
-                // Jos Enter ja puskurissa on tekstiä
-                if (e.key === 'Enter') {
-                    if (scanBuffer.length >= 2) {
-                        const scannedCode = scanBuffer.trim();
-                        scanBuffer = '';
-        
-                        // Jos käyttäjä oli hakukentässä ja skanneri lähetti Enterin, estetään perus-submit
-                        e.preventDefault();
-                        e.stopPropagation();
-        
-                        processScannedCode(scannedCode);
-                        return;
-                    }
-                    scanBuffer = '';
-                    return;
-                }
-        
-                // Puskurin nollaus jos merkkiväli oli liian pitkä (ihmiskirjoitus)
-                if (timeDiff > SCANNER_CHAR_INTERVAL_MS && scanBuffer.length > 0) {
-                    scanBuffer = '';
-                }
-        
-                // Vain tulostuvat merkit puskuriin
-                if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-                    scanBuffer += e.key;
-                }
-            }
-        
-            // Koodin käsittely
-            function processScannedCode(rawCode) {
-                const cleanCode = rawCode.trim().toUpperCase();
-                console.log('[Pupe-Saapuminen] Skannattu koodi:', cleanCode);
-        
-                // 1. Suora SKU-täsmäys
-                let matchedRow = arrivalRowsCache.find(r => r.sku === cleanCode);
-        
-                // 2. Täsmäys ilman erikoismerkkejä (väliviivat, välilyönnit)
-                if (!matchedRow) {
-                    const stripped = cleanCode.replace(/[^A-Z0-9]/g, '');
-                    matchedRow = arrivalRowsCache.find(r => r.sku.replace(/[^A-Z0-9]/g, '') === stripped);
-                }
-        
-                // 3. EAN-koodin välimuistitarkistus
-                if (!matchedRow && eanToSkuMap.has(cleanCode)) {
-                    const mappedSku = eanToSkuMap.get(cleanCode);
-                    matchedRow = arrivalRowsCache.find(r => r.sku === mappedSku);
-                }
-        
-                // 4. Jos koodi on EAN-numerosarja ja ei vielä välimuistissa, haetaan taustalla
-                if (!matchedRow && /^\d{8,14}$/.test(cleanCode)) {
-                    findSkuByEanOnline(cleanCode).then(foundSku => {
-                        if (foundSku) {
-                            const row = arrivalRowsCache.find(r => r.sku === foundSku.toUpperCase());
-                            if (row) {
-                                selectRowForReceiving(row);
-                                return;
-                            }
-                        }
-                        playErrorBuzzer();
-                        showToast(`❌ Tuotetta ei löytynyt EAN-koodilla: ${cleanCode}`, true);
-                    });
-                    return;
-                }
-        
-                if (matchedRow) {
-                    // Jos suodatus oli päällä ja rivi oli piilossa, palautetaan suodatus
-                    matchedRow.element.style.display = '';
-                    selectRowForReceiving(matchedRow);
-                } else {
-                    playErrorBuzzer();
-                    showToast(`❌ Tuotetta ei löytynyt saapumiselta: ${cleanCode}`, true);
-                }
-            }
-        
-            // EAN online-haku tuotekyselystä
-            async function findSkuByEanOnline(ean) {
-                try {
-                    const res = await fetch(`/tuote.php?tuoteno=${encodeURIComponent(ean)}`, { credentials: 'include' });
-                    if (!res.ok) return null;
-                    const html = await res.text();
-                    const doc = new DOMParser().parseFromString(html, 'text/html');
-                    const skuInput = doc.querySelector('input#tuoteno, input[name="tuoteno"]');
-                    if (skuInput && skuInput.value) {
-                        const sku = skuInput.value.trim().toUpperCase();
-                        eanToSkuMap.set(ean, sku);
-                        return sku;
-                    }
-                } catch (e) {
-                    console.warn('[Pupe-Saapuminen] EAN haku epäonnistui:', e);
-                }
-                return null;
-            }
-        
-            // =========================================================================
-            // INLINE VARASTOPAIKAN VALITSIN JA LISÄYS
+            // VARASTOPAIKAN SIISTI VALINTA JA LUONTI
             // =========================================================================
             let currentPopup = null;
-        
-            function openLocationPicker(rowItem, targetBtn) {
+
+            function openLocationPicker(rowItem, targetBadge) {
                 closeLocationPicker();
-        
+
                 const popup = document.createElement('div');
                 popup.id = 'ai-loc-popup';
+
                 popup.innerHTML = `
                     <div class="ai-loc-popup-header">
-                        <span>📍 Varastopaikka: ${rowItem.rawSku}</span>
+                        <span>📍 Varastopaikka: <strong>${rowItem.rawSku}</strong></span>
                         <button type="button" class="ai-loc-popup-close">✕</button>
                     </div>
-                    <div id="ai-loc-list" style="margin-bottom: 8px;">
-                        <div style="color: #64748b; padding: 6px;">Haetaan varastopaikkoja...</div>
+                    <div id="ai-loc-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 6px;">
+                        <div style="color: #64748b; padding: 4px;">Haetaan varastopaikkoja...</div>
                     </div>
                     <div class="ai-loc-new-box">
-                        <div style="font-weight: 600; font-size: 12px; margin-bottom: 4px;">Uusi varastopaikka:</div>
-                        <input type="text" class="ai-loc-input" id="ai-new-loc-input" placeholder="Esim. A-18-B-3 tai piippaa hylly">
-                        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 8px; cursor: pointer;">
-                            <input type="checkbox" id="ai-set-default-shelf" checked> Aseta tuotteen oletuspaikaksi
-                        </label>
-                        <button type="button" class="ai-loc-save-btn" id="ai-save-new-loc-btn">Tallenna ja valitse paikka</button>
+                        <div style="font-weight: 600; font-size: 11px; margin-bottom: 3px;">Uusi varastopaikka:</div>
+                        <input type="text" class="ai-loc-input" id="ai-new-loc-input" placeholder="Esim. A-18-B-3">
+                        <button type="button" class="ai-loc-save-btn" id="ai-save-new-loc-btn">Tallenna ja aseta paikaksi</button>
                     </div>
                 `;
-        
+
                 document.body.appendChild(popup);
                 currentPopup = popup;
-        
-                // Asettelu napin alle
-                const rect = targetBtn.getBoundingClientRect();
-                const popupWidth = 320;
+
+                const rect = targetBadge.getBoundingClientRect();
                 let left = rect.left + window.scrollX;
-                let top = rect.bottom + window.scrollY + 6;
-        
-                if (left + popupWidth > window.innerWidth - 10) {
-                    left = window.innerWidth - popupWidth - 10;
-                }
-        
+                let top = rect.bottom + window.scrollY + 4;
+                if (left + 320 > window.innerWidth - 10) left = window.innerWidth - 330;
+
                 popup.style.left = `${Math.max(10, left)}px`;
                 popup.style.top = `${top}px`;
-        
-                // Sulkemispainike
+
                 popup.querySelector('.ai-loc-popup-close').addEventListener('click', closeLocationPicker);
-        
+
                 // Noudetaan tuotteen paikat
                 fetchProductLocations(rowItem.rawSku).then(locations => {
                     const listEl = popup.querySelector('#ai-loc-list');
                     if (!listEl) return;
-        
+
                     if (!locations || locations.length === 0) {
-                        listEl.innerHTML = `<div style="color: #64748b; padding: 6px;">Ei aiemmin tallennettuja paikkoja.</div>`;
+                        listEl.innerHTML = `<div style="color: #64748b; padding: 4px;">Ei aiemmin tallennettuja paikkoja.</div>`;
                         return;
                     }
-        
+
                     listEl.innerHTML = '';
                     for (const loc of locations) {
                         const isCurrent = (rowItem.loc && loc.shelf.replace(/[^A-Za-z0-9]/g, '') === rowItem.loc.replace(/[^A-Za-z0-9]/g, ''));
@@ -6344,106 +6194,84 @@ async function fetchProductLocations(tuoteno) {
                         itemEl.className = `ai-loc-item ${isCurrent ? 'ai-loc-current' : ''}`;
                         itemEl.innerHTML = `
                             <div>
-                                <strong>${loc.shelf}</strong> ${loc.isDefault ? '<span style="color:#0284c7; font-size:11px;">(Oletus)</span>' : ''}
-                                <div style="font-size: 11px; color: #64748b;">Saldo: ${loc.saldo} kpl | Hyllyssä: ${loc.hyllyssa}</div>
+                                <strong>${loc.shelf}</strong> ${loc.isDefault ? '<span style="color:#0284c7; font-size:10px;">(Oletus)</span>' : ''}
+                                <div style="font-size: 11px; color: #64748b;">Saldo: ${loc.saldo} kpl</div>
                             </div>
-                            <button type="button" class="ai-topbar-btn" style="height:30px; padding:0 8px; font-size:11px;">Valitse</button>
+                            <span style="font-size:11px; color:#0284c7; font-weight:600;">Valitse ›</span>
                         `;
-        
+
                         itemEl.addEventListener('click', () => {
-                            applyLocationToRow(rowItem, loc.shelf, targetBtn);
+                            applyLocationToRow(rowItem, loc.shelf, targetBadge);
                             closeLocationPicker();
                         });
-        
+
                         listEl.appendChild(itemEl);
                     }
                 });
-        
+
                 // Uuden paikan tallennus
                 const saveBtn = popup.querySelector('#ai-save-new-loc-btn');
                 const newLocInput = popup.querySelector('#ai-new-loc-input');
-                const defaultCheck = popup.querySelector('#ai-set-default-shelf');
-        
+
                 saveBtn.addEventListener('click', async () => {
                     const newLoc = newLocInput.value.trim().toUpperCase();
                     if (!newLoc) {
-                        alert('Syötä tai piippaa uusi varastopaikka!');
                         newLocInput.focus();
                         return;
                     }
-        
+
                     saveBtn.disabled = true;
                     saveBtn.textContent = 'Tallennetaan...';
-        
+
                     try {
-                        await saveNewLocation(rowItem.rawSku, newLoc, defaultCheck.checked);
-                        applyLocationToRow(rowItem, newLoc, targetBtn);
+                        await saveNewLocation(rowItem.rawSku, newLoc);
+                        applyLocationToRow(rowItem, newLoc, targetBadge);
                         showToast(`✅ Uusi varastopaikka tallennettu: ${newLoc}`);
                         closeLocationPicker();
                     } catch (err) {
-                        alert('Virhe tallennettaessa varastopaikkaa: ' + err.message);
+                        alert('Virhe: ' + err.message);
                         saveBtn.disabled = false;
-                        saveBtn.textContent = 'Tallenna ja valitse paikka';
+                        saveBtn.textContent = 'Tallenna ja aseta paikaksi';
                     }
                 });
             }
-        
+
             function closeLocationPicker() {
                 if (currentPopup && currentPopup.parentNode) {
                     currentPopup.parentNode.removeChild(currentPopup);
                 }
                 currentPopup = null;
             }
-        
-            // Päivittää rivin varastopaikkatekstin ja synkronoi taustalla Pupesoftiin ilman sivulatausta
-            async function applyLocationToRow(rowItem, newShelf, targetBtn) {
+
+            async function applyLocationToRow(rowItem, newShelf, targetBadge) {
                 rowItem.loc = newShelf;
-                targetBtn.textContent = `📍 ${newShelf} ▾`;
-                targetBtn.style.background = '#dcfce7';
-                targetBtn.style.color = '#15803d';
-                targetBtn.style.borderColor = '#86efac';
-        
-                // Päivitetään myös td[1] teksti
-                if (rowItem.td1) {
-                    const parts = rowItem.td1.innerHTML.split(/<br\s*\/?>/i);
-                    if (parts.length > 1) {
-                        rowItem.td1.innerHTML = `${parts[0]}<br>${newShelf}`;
-                        // Lisätään nappi uudelleen td1:een
-                        enhanceRowLocation(rowItem);
-                    }
-                }
-        
-                // Taustasynkronointi saapumisen tilausriville (ostorivienvarastopaikat.inc)
+                targetBadge.textContent = `📍 ${newShelf} ▾`;
+                targetBadge.classList.remove('ai-loc-empty');
+
                 if (rowItem.riviId) {
                     syncLocationToArrivalLine(rowItem.riviId, newShelf).catch(e => {
-                        console.warn('[Pupe-Saapuminen] Varastopaikan rivisynkronointi epäonnistui:', e);
+                        console.warn('[Pupe-Saapuminen] Varastopaikan synkronointi epäonnistui:', e);
                     });
                 }
-        
-                showToast(`📍 Varastopaikaksi valittu: ${newShelf}`);
+
+                showToast(`📍 Paikaksi asetettu: ${newShelf}`);
             }
-        
-            // Taustalähetys ostorivienvarastopaikat -rajapintaan
+
             async function syncLocationToArrivalLine(riviId, shelfStr) {
                 const parts = shelfStr.replace(/[\s_]+/g, '-').split('-').filter(Boolean);
-                const t1 = parts[0] || shelfStr;
-                const t2 = parts[1] || '';
-                const t3 = parts[2] || '';
-                const t4 = parts[3] || '';
-        
                 const otunnusInput = document.querySelector('input[name="otunnus"], input[name="keikka"]');
                 const otunnus = otunnusInput ? otunnusInput.value : '';
-        
+
                 const params = new URLSearchParams();
                 params.set('toiminto', 'varastopaikat');
                 params.set('tee', 'valmis');
                 if (otunnus) params.set('otunnus', otunnus);
                 params.append('tunnukset[]', String(riviId));
-                params.set(`t1[${riviId}]`, t1);
-                params.set(`t2[${riviId}]`, t2);
-                params.set(`t3[${riviId}]`, t3);
-                params.set(`t4[${riviId}]`, t4);
-        
+                params.set(`t1[${riviId}]`, parts[0] || shelfStr);
+                params.set(`t2[${riviId}]`, parts[1] || '');
+                params.set(`t3[${riviId}]`, parts[2] || '');
+                params.set(`t4[${riviId}]`, parts[3] || '');
+
                 await fetch('/tilauskasittely/keikka.php', {
                     method: 'POST',
                     credentials: 'include',
@@ -6451,8 +6279,7 @@ async function fetchProductLocations(tuoteno) {
                     body: params.toString()
                 });
             }
-        
-            // Noutaa tuotteen varastopaikat ja saldot
+
             async function fetchProductLocations(sku) {
                 const locations = [];
                 try {
@@ -6466,195 +6293,88 @@ async function fetchProductLocations(tuoteno) {
                             if (tds.length >= 5) {
                                 const shelf = (tds[1].textContent || '').trim();
                                 const saldo = (tds[2].textContent || '').trim();
-                                const hyllyssa = (tds[3].textContent || '').trim();
                                 if (shelf && shelf !== '?' && !shelf.toLowerCase().includes('tuntematon')) {
                                     locations.push({
                                         shelf,
                                         saldo,
-                                        hyllyssa,
                                         isDefault: locations.length === 0
                                     });
                                 }
                             }
                         }
                     }
-                } catch (e) {
-                    console.warn('[Pupe-Saapuminen] Varastopaikkojen haku epäonnistui:', e);
-                }
+                } catch (e) {}
                 return locations;
             }
-        
-            // Tallentaa uuden varastopaikan tuotteelle muuvarastopaikka.php:n kautta
-            async function saveNewLocation(sku, newLoc, setAsDefault) {
+
+            async function saveNewLocation(sku, newLoc) {
                 const params = new URLSearchParams();
                 params.set('tee', 'UUSIPAIKKA_VIIVAKOODI');
                 params.set('toim', '');
                 params.set('tuoteno', sku);
                 params.set('paikkalahde', 'VAPAA');
                 params.set('hyllypaikka_viivakoodilla', newLoc);
-        
+
                 const res = await fetch('/muuvarastopaikka.php?indexvas=1', {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                     body: params.toString()
                 });
-        
-                if (!res.ok) {
-                    throw new Error(`Palvelinvirhe (HTTP ${res.status})`);
-                }
+
+                if (!res.ok) throw new Error(`Palvelinvirhe (${res.status})`);
                 return true;
             }
-        
+
             // =========================================================================
-            // RIVIEN RIKASTAMINEN: MÄÄRÄNAPIT, PAIKKAPAINIKE JA KUITTAUS
+            // RIVIN SIISTI RIKASTAMINEN (VAIN HYLLYPAIKKA-BADGE, EI YLIMÄÄRÄISIÄ NAPPEJA!)
             // =========================================================================
-            function enhanceRowLocation(rowItem) {
+            function enhanceRowClean(rowItem) {
                 if (!rowItem.td1) return;
-                if (rowItem.td1.querySelector('.ai-loc-btn')) return;
-        
-                const locBtn = document.createElement('button');
-                locBtn.type = 'button';
-                locBtn.className = 'ai-loc-btn';
-                locBtn.textContent = `📍 ${rowItem.loc || 'Valitse paikka'} ▾`;
-                locBtn.title = 'Valitse tai lisää varastopaikka suoraan tälle riville';
-        
-                locBtn.addEventListener('click', (e) => {
+                if (rowItem.td1.querySelector('.ai-loc-badge')) return;
+
+                // Erotetaan tilausnumero ja hyllypaikka
+                const parts = rowItem.td1.innerHTML.split(/<br\s*\/?>/i);
+                const orderNo = parts[0] ? parts[0].trim() : '';
+                const loc = parts[1] ? parts[1].replace(/<[^>]+>/g, '').trim() : '';
+
+                // Luodaan kompakti badge tekstin tilalle
+                const badge = document.createElement('span');
+                badge.className = `ai-loc-badge ${(!loc || loc === 'A-0-0-0') ? 'ai-loc-empty' : ''}`;
+                badge.textContent = `📍 ${loc || 'Valitse'} ▾`;
+                badge.title = 'Vaihda tai lisää varastopaikka';
+
+                badge.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    openLocationPicker(rowItem, locBtn);
+                    openLocationPicker(rowItem, badge);
                 });
-        
-                rowItem.td1.appendChild(document.createElement('br'));
-                rowItem.td1.appendChild(locBtn);
+
+                rowItem.td1.innerHTML = `${orderNo}<br>`;
+                rowItem.td1.appendChild(badge);
             }
-        
-            function enhanceRowControls(rowItem) {
-                // 1. Varastopaikkapainike
-                enhanceRowLocation(rowItem);
-        
-                // 2. Määräsäätimet määräkentän viereen
-                if (rowItem.qtyInput && !rowItem.qtyInput.parentNode.querySelector('.ai-qty-btn-group')) {
-                    const group = document.createElement('div');
-                    group.className = 'ai-qty-btn-group';
-        
-                    const minusBtn = document.createElement('button');
-                    minusBtn.type = 'button';
-                    minusBtn.className = 'ai-qty-btn';
-                    minusBtn.textContent = '-1';
-                    minusBtn.title = 'Vähennä 1 kpl';
-                    minusBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        let val = parseFloat(rowItem.qtyInput.value) || 0;
-                        if (val > 1) {
-                            rowItem.qtyInput.value = val - 1;
-                        }
-                    });
-        
-                    const plusBtn = document.createElement('button');
-                    plusBtn.type = 'button';
-                    plusBtn.className = 'ai-qty-btn';
-                    plusBtn.textContent = '+1';
-                    plusBtn.title = 'Lisää 1 kpl';
-                    plusBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        let val = parseFloat(rowItem.qtyInput.value) || 0;
-                        rowItem.qtyInput.value = val + 1;
-                    });
-        
-                    const originalVal = rowItem.qtyInput.value;
-                    const fullBtn = document.createElement('button');
-                    fullBtn.type = 'button';
-                    fullBtn.className = 'ai-qty-full-btn';
-                    fullBtn.textContent = 'Täysi';
-                    fullBtn.title = `Palauta tilattu määrä (${originalVal})`;
-                    fullBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        rowItem.qtyInput.value = originalVal;
-                    });
-        
-                    group.appendChild(minusBtn);
-                    group.appendChild(plusBtn);
-                    group.appendChild(fullBtn);
-        
-                    rowItem.qtyInput.parentNode.insertBefore(group, rowItem.qtyInput.nextSibling);
-                }
-        
-                // 3. Enter määräkentässä tai Kuittaa-painike rivin päähän
-                if (rowItem.qtyInput) {
-                    rowItem.qtyInput.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            confirmRow(rowItem);
-                        }
-                    });
-                }
-        
-                // 4. Kuittaa-painike muokkaus-sarakkeeseen (td[10]) tai ensimmäiseen sarakkeeseen
-                const actionTd = rowItem.element.children[10] || rowItem.element.children[0];
-                if (actionTd && !actionTd.querySelector('.ai-confirm-row-btn')) {
-                    const confirmBtn = document.createElement('button');
-                    confirmBtn.type = 'button';
-                    confirmBtn.className = 'ai-confirm-row-btn';
-                    confirmBtn.innerHTML = '✓ Kuittaa';
-                    confirmBtn.title = 'Merkitse saapuneeksi ja tallenna';
-                    confirmBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        confirmRow(rowItem);
-                    });
-                    actionTd.appendChild(confirmBtn);
-                }
-            }
-        
-            // Rivin kuittaus (käyttäjän vahvistus)
-            function confirmRow(rowItem) {
-                if (!rowItem) return;
-        
-                // Rastitetaan checkbox
-                if (rowItem.checkbox) {
-                    rowItem.checkbox.checked = true;
-                }
-        
-                playSuccessChime();
-                showToast(`✅ Rivi kuitattu: ${rowItem.rawSku} (${rowItem.qtyInput.value} kpl) -> Tallennetaan...`);
-        
-                // Kutsutaan Pupesoftin virallista tallennusfunktiota
-                if (typeof window.submit_juppe === 'function' && rowItem.riviId) {
-                    window.submit_juppe(rowItem.riviId);
-                } else if (document.paaformi) {
-                    document.paaformi.submit();
-                }
-            }
-        
+
             // =========================================================================
-            // SIVUN ALUSTUS
+            // ALUSTUS
             // =========================================================================
             function init() {
-                if (!isArrivalMatchingPage()) {
-                    return;
-                }
-                console.log('[Pupe-Saapuminen] Saapumisen kohdistussivu tunnistettu. Alustetaan toiminnot...');
                 injectStyles();
                 buildTopBar();
-        
+
                 for (const item of arrivalRowsCache) {
-                    enhanceRowControls(item);
+                    enhanceRowClean(item);
                 }
-        
-                // Sulje popup klikattaessa sen ulkopuolelle
+
                 document.addEventListener('click', (e) => {
-                    if (currentPopup && !currentPopup.contains(e.target) && !e.target.closest('.ai-loc-btn')) {
+                    if (currentPopup && !currentPopup.contains(e.target) && !e.target.closest('.ai-loc-badge')) {
                         closeLocationPicker();
                     }
                 });
-        
-                // Globaali skannerikuuntelija
+
                 window.addEventListener('keydown', handleGlobalKeydown, true);
-        
-                console.log(`[Pupe-Saapuminen] Alustus valmis. ${arrivalRowsCache.length} riviä valmiina skannaukseen ja hakuun.`);
+                console.log(`[Pupe-Saapuminen] Alustus valmis. ${arrivalRowsCache.length} riviä valmiina.`);
             }
-        
-            // Käynnistetään kun DOM on valmis
+
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', init);
             } else {
