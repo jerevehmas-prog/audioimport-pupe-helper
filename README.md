@@ -10,6 +10,12 @@ Pupesoft ERP -keräysjonon automaattinen älykkäämpi järjestely ja priorisoin
 - ⚡ **Toimitustapapriorisointi (DPD):** Jokaisen väritason sisällä **DPD**-toimitukset nousevat automaattisesti ensimmäiseksi, minkä jälkeen tilaukset ovat vanhimmasta uusimpaan.
 - 🔥 **Pikatilaukset:** Tunnistaa tekstit (`pikatilaus`, `rush order` jne.) ja skannaa taustalla tilauksen tuoteriveiltä automaattisesti tuotteen `EXTRA DELIVERY COST`.
 - 📦 **Suora Rahtilaskuri-integraatio & tilausten yhdistäminen:** Keräyslistalla jokaisella rivillä on suora "Laske rahti" -painike. Jos samalle asiakkaalle on useita tilauksia jonossa, painike ilmoittaa tilauksien määrän ja avaa helpon yhdistelyikkunan, josta valitut tilaukset siirtyvät automaattisesti Rahtilaskuriin ja yhdistyvät samaan kuormaan.
+- 📥 **Tavaran saapumiset ja kohdistus (`keikka.php` - v7.0):**
+  - **Viivakoodiskannaus (Keyboard Wedge / EAN / Tuotenumero):** Piippaus hakee automaattisesti oikean saapumisrivin, skrollaa sen keskelle näyttöä, antaa vihreän huomiovalon ja asettaa kohdistuksen suoraan saapuvan määrän kenttään (`rivi_kpl`).
+  - **Turvallinen konttipurkulogiikka:** Skannaus **EI kuittaa riviä automaattisesti**, koska saapuva määrä voi poiketa tilausmäärästä (konttipurku ja lavoitus). Määrä on heti muokattavissa ja valittavissa.
+  - **Reaaliaikainen pikahaku:** Yläpalkin hakukenttä suodattaa 50+ rivin saapumislistaa salamannopeasti kirjoitettaessa (tuotenumero, nimike, ostotilausnumero).
+  - **Suora varastopaikkavalitsin ja luonti (`[ 📍 Paikka ▾ ]`):** Näyttää tuotteen nykyiset varastopaikat ja reaaliaikaiset saldot. Uuden varastopaikan (hylly, hyllyväli, hyllytaso) voi luoda ja valita suoraan saapumissivulta ilman edestakaista hyppimistä `ostolaskunvarastopaikat.php`-sivulle.
+  - **Täysi Tablet- ja kosketusnäyttöoptimointi:** Vähintään 44px kosketusalueet, `touch-action: manipulation;`, nopeat määränsäätimet `[-1]`, `[+1]`, `[Täysi]` sekä selkeä `[✓ Kuittaa]` -painike.
 - 🎨 **Keräilysivun (keraa.php) selkeytys:**
   - Joka toinen tuoterivi pehmeällä harmaalla taustalla erottamisen helpottamiseksi.
   - Kerätyt rivit korostuvat välittömästi smaragdinvihreällä (`#d1fae5`), 8px vihreällä huomiopalkilla ja vihreällä `✓ Päivitä` -napilla.
