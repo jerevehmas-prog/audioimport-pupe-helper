@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      7.7
+// @version      7.8
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, ennustava pikahaku (Alt+F, Alt+P, F2), varastopaikkasiirrot oletuspaikalla, yhtenäistetyt Pupesoft-napit, siistitty saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -3691,6 +3691,17 @@ async function fetchProductLocations(tuoteno) {
         // 3. Lisätään "Laske rahti valituille" -painike Pupesoftin "Yhdistä valitut keräykseen" -painikkeen viereen
         const yhdistysSubmitBtn = document.querySelector('input[value*="Yhdistä valitut"], button[value*="Yhdistä valitut"]');
         if (yhdistysSubmitBtn && yhdistysSubmitBtn.parentNode) {
+            let wrap = document.getElementById('ai-yhdistys-buttons-wrap');
+            if (!wrap) {
+                wrap = document.createElement('span');
+                wrap.id = 'ai-yhdistys-buttons-wrap';
+                wrap.style.cssText = 'display: inline-flex !important; align-items: center !important; gap: 8px !important; white-space: nowrap !important; vertical-align: middle !important;';
+                yhdistysSubmitBtn.parentNode.insertBefore(wrap, yhdistysSubmitBtn);
+                wrap.appendChild(yhdistysSubmitBtn);
+            } else if (yhdistysSubmitBtn.parentNode !== wrap) {
+                wrap.appendChild(yhdistysSubmitBtn);
+            }
+
             let rahtiValituilleBtn = document.getElementById('ai-keraa-rahti-valituille-btn');
             if (!rahtiValituilleBtn) {
                 rahtiValituilleBtn = document.createElement('button');
@@ -3711,7 +3722,8 @@ async function fetchProductLocations(tuoteno) {
                     height: 26px !important;
                     line-height: 24px !important;
                     padding: 0 12px !important;
-                    margin-right: 8px !important;
+                    margin: 0 !important;
+                    position: static !important;
                     box-shadow: none !important;
                     box-sizing: border-box !important;
                     cursor: pointer !important;
@@ -3724,7 +3736,7 @@ async function fetchProductLocations(tuoteno) {
                     transition: filter 0.15s ease !important;
                 `;
 
-                yhdistysSubmitBtn.parentNode.insertBefore(rahtiValituilleBtn, yhdistysSubmitBtn);
+                wrap.insertBefore(rahtiValituilleBtn, yhdistysSubmitBtn);
 
                 rahtiValituilleBtn.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -8956,8 +8968,7 @@ async function fetchProductLocations(tuoteno) {
                 white-space: nowrap !important;
             }
 
-            .ai-rahti-btn,
-            #ai-keraa-rahti-valituille-btn {
+            .ai-rahti-btn {
                 background: #119fe7 !important;
                 background-image: none !important;
                 color: #ffffff !important;
@@ -8984,6 +8995,48 @@ async function fetchProductLocations(tuoteno) {
                 touch-action: manipulation !important;
                 -webkit-tap-highlight-color: transparent !important;
                 transition: filter 0.15s ease !important;
+            }
+
+            #ai-keraa-rahti-valituille-btn {
+                background: #119fe7 !important;
+                background-image: none !important;
+                color: #ffffff !important;
+                border: 1px solid #1094d8 !important;
+                border-radius: 2px !important;
+                font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                font-size: 10pt !important;
+                font-weight: normal !important;
+                height: 26px !important;
+                line-height: 24px !important;
+                padding: 0 12px !important;
+                box-shadow: none !important;
+                box-sizing: border-box !important;
+                cursor: pointer !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                vertical-align: middle !important;
+                position: static !important;
+                margin: 0 !important;
+                text-shadow: none !important;
+                outline: none !important;
+                touch-action: manipulation !important;
+                -webkit-tap-highlight-color: transparent !important;
+                transition: filter 0.15s ease !important;
+            }
+
+            #ai-yhdistys-buttons-wrap {
+                display: inline-flex !important;
+                align-items: center !important;
+                gap: 8px !important;
+                white-space: nowrap !important;
+                vertical-align: middle !important;
+            }
+
+            #ai-yhdistys-buttons-wrap > * {
+                margin: 0 !important;
+                float: none !important;
+                position: static !important;
             }
 
             #ai-keraa-rahti-btn {
@@ -9164,7 +9217,8 @@ async function fetchProductLocations(tuoteno) {
         // 2. Linjataan rivikohtaiset Laske rahti -painikkeet viereisten Kerää/Näytä/Tulosta -painikkeiden tasoon
         const rows = document.querySelectorAll('tr');
         rows.forEach(tr => {
-            const rahtiBtn = tr.querySelector('.ai-rahti-btn');
+            // Ohitetaan bulk-rahtinappi, joka on tilauslistan alapuolella omassa wrapperissaan
+            const rahtiBtn = tr.querySelector('.ai-rahti-btn:not(#ai-keraa-rahti-valituille-btn)');
             if (!rahtiBtn) return;
 
             const rahtiTd = rahtiBtn.closest('td');
@@ -9218,21 +9272,18 @@ async function fetchProductLocations(tuoteno) {
             }
         });
 
-        // 3. Linjataan "Laske rahti valituille" -painike viereisen "Yhdistä valitut keräykseen" -painikkeen rinnalle
+        // 3. Varmistetaan että "Laske rahti valituille" ja "Yhdistä valitut keräykseen" ovat nätisti vierekkäin
         const valituilleBtn = document.getElementById('ai-keraa-rahti-valituille-btn');
         const yhdistysSubmitBtn = document.querySelector('input[value*="Yhdistä valitut"], button[value*="Yhdistä valitut"]');
         if (valituilleBtn && yhdistysSubmitBtn) {
+            valituilleBtn.style.removeProperty('top');
+            valituilleBtn.style.setProperty('position', 'static', 'important');
+            valituilleBtn.style.setProperty('margin', '0', 'important');
+
             const r1 = yhdistysSubmitBtn.getBoundingClientRect();
-            const r2 = valituilleBtn.getBoundingClientRect();
             if (r1.height > 0) {
                 valituilleBtn.style.setProperty('height', `${Math.round(r1.height)}px`, 'important');
                 valituilleBtn.style.setProperty('line-height', `${Math.round(r1.height - 2)}px`, 'important');
-            }
-            if (r1.top > 0 && r2.top > 0) {
-                const currentTop = parseFloat(valituilleBtn.style.top || '0') || 0;
-                const diff = Math.round(r1.top - (r2.top - currentTop));
-                valituilleBtn.style.setProperty('position', 'relative', 'important');
-                valituilleBtn.style.setProperty('top', `${diff}px`, 'important');
             }
         }
     }
