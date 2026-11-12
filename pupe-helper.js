@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      7.4
+// @version      7.5
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, ennustava pikahaku (Alt+F, Alt+P, F2), varastopaikkasiirrot oletuspaikalla, yhtenäistetyt Pupesoft-napit, siistitty saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -3562,7 +3562,8 @@ async function fetchProductLocations(tuoteno) {
             if (!tdRahti) {
                 tdRahti = document.createElement('td');
                 tdRahti.className = 'ai-rahti-td';
-                tdRahti.style.cssText = 'text-align: left !important; vertical-align: top !important; padding: 5px !important; white-space: nowrap;';
+                const keraaValign = keraaTd ? (keraaTd.getAttribute('valign') || '') : '';
+                tdRahti.style.cssText = `text-align: left !important; ${keraaValign ? `vertical-align: ${keraaValign} !important;` : ''} padding: 5px !important; white-space: nowrap;`;
                 if (keraaTd && keraaTd.nextSibling) {
                     keraaTd.parentNode.insertBefore(tdRahti, keraaTd.nextSibling);
                 } else {
@@ -3688,6 +3689,12 @@ async function fetchProductLocations(tuoteno) {
         if (missingOrders.length > 0) {
             tarkistaPuuttuvatTilaukset(missingOrders);
         }
+
+        // Sovitetaan Laske rahti -napit välittömästi Kerää-nappien tasoon
+        sovitaKeraaRahtiPainikkeet();
+        if (window.requestAnimationFrame) requestAnimationFrame(sovitaKeraaRahtiPainikkeet);
+        setTimeout(sovitaKeraaRahtiPainikkeet, 50);
+        setTimeout(sovitaKeraaRahtiPainikkeet, 250);
     }
 
     // =========================================================================
@@ -8853,7 +8860,6 @@ async function fetchProductLocations(tuoteno) {
 
             td.ai-rahti-td {
                 text-align: left !important;
-                vertical-align: top !important;
                 padding: 5px !important;
                 white-space: nowrap !important;
             }
@@ -8878,9 +8884,9 @@ async function fetchProductLocations(tuoteno) {
                 display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
-                vertical-align: top !important;
+                vertical-align: middle !important;
                 position: relative !important;
-                top: -1px !important;
+                top: 0px !important;
                 margin: 0 !important;
                 text-shadow: none !important;
                 outline: none !important;
@@ -9034,25 +9040,36 @@ async function fetchProductLocations(tuoteno) {
             th.style.setProperty('padding', '5px', 'important');
         });
 
-        // 2. Linjataan rivikohtaiset Laske rahti -painikkeet viereisten Tulosta/Näytä -painikkeiden tasoon
+        // 2. Linjataan rivikohtaiset Laske rahti -painikkeet viereisten Kerää/Näytä/Tulosta -painikkeiden tasoon
         const rows = document.querySelectorAll('tr');
         rows.forEach(tr => {
             const rahtiBtn = tr.querySelector('.ai-rahti-btn');
             if (!rahtiBtn) return;
 
             const rahtiTd = rahtiBtn.closest('td');
-            // Etsitään samalta riviltä aito Pupesoft-painike (Näytä tai Tulosta)
-            const refBtn = tr.querySelector('input[type="submit"][value="Näytä"], input[value="Näytä"], input[type="submit"][value="Tulosta"], input[value="Tulosta"]');
+            // Etsitään samalta riviltä aito Pupesoft-painike (Kerää, Näytä, Tulosta tms.)
+            const refBtn = tr.querySelector(
+                'input[type="submit"][value="Kerää"], input[value="Kerää"], ' +
+                'input[type="submit"][value="Näytä"], input[value="Näytä"], ' +
+                'input[type="submit"][value="Tulosta"], input[value="Tulosta"], ' +
+                'input[type="submit"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn), ' +
+                'button[type="submit"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn), ' +
+                'input[type="button"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn)'
+            );
 
             if (refBtn) {
                 const refTd = refBtn.closest('td');
                 if (refTd && rahtiTd) {
-                    rahtiTd.style.setProperty('vertical-align', 'top', 'important');
                     rahtiTd.style.setProperty('text-align', 'left', 'important');
                     try {
                         const compTd = window.getComputedStyle(refTd);
-                        if (compTd && compTd.padding) {
-                            rahtiTd.style.setProperty('padding', compTd.padding, 'important');
+                        const refValign = refTd.getAttribute('valign') || (compTd ? compTd.verticalAlign : '') || 'middle';
+                        rahtiTd.style.setProperty('vertical-align', refValign, 'important');
+                        if (compTd && compTd.paddingTop) {
+                            rahtiTd.style.setProperty('padding-top', compTd.paddingTop, 'important');
+                            rahtiTd.style.setProperty('padding-bottom', compTd.paddingBottom, 'important');
+                            rahtiTd.style.setProperty('padding-left', compTd.paddingLeft, 'important');
+                            rahtiTd.style.setProperty('padding-right', compTd.paddingRight, 'important');
                         }
                     } catch (e) {}
                 }
@@ -9066,13 +9083,13 @@ async function fetchProductLocations(tuoteno) {
                 }
 
                 if (r1.top > 0 && r2.top > 0) {
-                    const currentTop = parseFloat(rahtiBtn.style.top || '-1') || 0;
+                    const currentTop = parseFloat(rahtiBtn.style.top || '0') || 0;
                     const diff = Math.round(r1.top - (r2.top - currentTop));
                     rahtiBtn.style.setProperty('position', 'relative', 'important');
                     rahtiBtn.style.setProperty('top', `${diff}px`, 'important');
                 }
             } else if (rahtiTd) {
-                rahtiTd.style.setProperty('vertical-align', 'top', 'important');
+                rahtiTd.style.setProperty('vertical-align', 'middle', 'important');
                 rahtiTd.style.setProperty('padding', '5px', 'important');
                 rahtiTd.style.setProperty('text-align', 'left', 'important');
             }
