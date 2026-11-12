@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      7.8
+// @version      7.9
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, ennustava pikahaku (Alt+F, Alt+P, F2), varastopaikkasiirrot oletuspaikalla, yhtenäistetyt Pupesoft-napit, siistitty saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -7479,6 +7479,8 @@ async function fetchProductLocations(tuoteno) {
     let activeQueryId = 0;
     let lastSearchResults = null;
     let selectedListIndex = -1;
+    let prevBodyOverflow = '';
+    let prevHtmlOverflow = '';
 
     function luoPikahakuModaali() {
         if (modalOverlay) return;
@@ -7488,15 +7490,21 @@ async function fetchProductLocations(tuoteno) {
         modalOverlay.style.cssText = `
             position: fixed;
             inset: 0;
+            width: 100%;
+            height: 100%;
             background: rgba(15, 23, 42, 0.70);
             backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             z-index: 9999999;
             display: none;
-            align-items: flex-start;
+            align-items: center;
             justify-content: center;
-            padding-top: 8vh;
+            padding: 12px;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             box-sizing: border-box;
+            overflow: hidden;
+            overscroll-behavior: contain !important;
+            touch-action: none;
         `;
 
         const modal = document.createElement('div');
@@ -7504,12 +7512,17 @@ async function fetchProductLocations(tuoteno) {
         modal.style.cssText = `
             background: #ffffff;
             width: 660px;
-            max-width: 95vw;
-            border-radius: 16px;
+            max-width: calc(100vw - 24px);
+            max-height: calc(100dvh - 24px);
+            max-height: calc(100vh - 24px);
+            border-radius: 14px;
             box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.1);
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            overscroll-behavior: contain !important;
+            touch-action: pan-y;
+            box-sizing: border-box;
             animation: aiPikahakuFadeIn 0.15s ease-out;
         `;
 
@@ -7571,16 +7584,16 @@ async function fetchProductLocations(tuoteno) {
             </style>
             
             <!-- HAKUPALKKI -->
-            <div style="display:flex; align-items:center; gap:12px; padding:15px 20px; border-bottom:1px solid #e2e8f0; background:#ffffff;">
+            <div style="display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid #e2e8f0; background:#ffffff; flex-shrink:0; box-sizing:border-box;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="ai-pikahaku-input" placeholder="Hae tuotekoodilla, nimikkeellä tai EAN-koodilla..." autocomplete="off" spellcheck="false" style="flex:1; border:none; outline:none; font-size:16px; font-weight:600; color:#0f172a; background:transparent;">
-                <button id="ai-pikahaku-clear" title="Tyhjennä haku" style="display:none; background:#f1f5f9; border:none; border-radius:50%; width:24px; height:24px; min-width:24px; min-height:24px; padding:0; flex-shrink:0; font-size:12px; font-weight:bold; color:#64748b; cursor:pointer; line-height:1; align-items:center; justify-content:center;">✕</button>
-                <button id="ai-pikahaku-close" title="Sulje haku (Esc)" style="background:transparent; border:none; border-radius:6px; width:28px; height:28px; min-width:28px; min-height:28px; padding:0; flex-shrink:0; font-size:16px; color:#94a3b8; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s;" onmouseover="this.style.background='#f1f5f9'; this.style.color='#475569';" onmouseout="this.style.background='transparent'; this.style.color='#94a3b8';">✕</button>
+                <input type="text" id="ai-pikahaku-input" placeholder="Hae tuotekoodilla, nimikkeellä tai EAN-koodilla..." autocomplete="off" spellcheck="false" style="flex:1; min-width:0; border:none; outline:none; font-size:16px; font-weight:600; color:#0f172a; background:transparent;">
+                <button id="ai-pikahaku-clear" type="button" title="Tyhjennä haku" style="display:none; background:#f1f5f9; border:none; border-radius:50%; width:32px; height:32px; min-width:32px; min-height:32px; padding:0; flex-shrink:0; font-size:14px; font-weight:bold; color:#64748b; cursor:pointer; line-height:1; align-items:center; justify-content:center; touch-action:manipulation; user-select:none; -webkit-user-select:none;">✕</button>
+                <button id="ai-pikahaku-close" type="button" title="Sulje haku (Esc)" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; width:38px; height:38px; min-width:38px; min-height:38px; padding:0; flex-shrink:0; font-size:18px; font-weight:700; color:#475569; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; touch-action:manipulation; user-select:none; -webkit-user-select:none;" onmouseover="this.style.background='#fee2e2'; this.style.borderColor='#fca5a5'; this.style.color='#dc2626';" onmouseout="this.style.background='#f8fafc'; this.style.borderColor='#e2e8f0'; this.style.color='#475569';">✕</button>
             </div>
 
             <!-- TULOSALUE -->
-            <div id="ai-pikahaku-results" style="padding:20px; max-height:68vh; overflow-y:auto; min-height:140px; display:flex; flex-direction:column; justify-content:center;">
-                <div style="text-align:center; padding:32px 20px; color:#64748b;">
+            <div id="ai-pikahaku-results" style="padding:16px 20px; flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain !important; box-sizing:border-box;">
+                <div style="text-align:center; padding:32px 20px; color:#64748b; min-height:180px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
                     <div style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; background:#f1f5f9; border-radius:50%; margin-bottom:12px;">
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     </div>
@@ -7592,8 +7605,8 @@ async function fetchProductLocations(tuoteno) {
             </div>
 
             <!-- ALAPALKKI -->
-            <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:10px 20px; display:flex; align-items:center; justify-content:space-between; font-size:12px; color:#64748b;">
-                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:10px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:#64748b; flex-shrink:0; box-sizing:border-box;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                     <div style="display:flex; align-items:center; gap:6px;">
                         <span style="background:#e2e8f0; color:#334155; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px; font-family:monospace;">Alt + F</span>
                         <span style="font-weight:500;">Pikahaku</span>
@@ -7609,10 +7622,10 @@ async function fetchProductLocations(tuoteno) {
                         <span style="font-weight:500;">Avaa</span>
                     </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:6px;">
-                    <span style="background:#e2e8f0; color:#334155; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px; font-weight:700; font-size:10px; font-family:monospace;">Esc</span>
-                    <span style="font-weight:500;">Sulje</span>
-                </div>
+                <button id="ai-pikahaku-footer-close" type="button" style="display:inline-flex; align-items:center; gap:6px; background:#ffffff; border:1px solid #cbd5e1; color:#334155; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; touch-action:manipulation; user-select:none; -webkit-user-select:none; transition:all 0.15s; box-shadow:0 1px 2px rgba(0,0,0,0.05);" onmouseover="this.style.background='#fee2e2'; this.style.borderColor='#fca5a5'; this.style.color='#dc2626';" onmouseout="this.style.background='#ffffff'; this.style.borderColor='#cbd5e1'; this.style.color='#334155';">
+                    <span style="background:#e2e8f0; color:#334155; border:1px solid #cbd5e1; padding:1px 5px; border-radius:4px; font-weight:700; font-size:10px; font-family:monospace;">Esc</span>
+                    <span>Sulje ikkuna</span>
+                </button>
             </div>
         `;
 
@@ -7623,19 +7636,61 @@ async function fetchProductLocations(tuoteno) {
         resultsContainer = modal.querySelector('#ai-pikahaku-results');
         const clearBtn = modal.querySelector('#ai-pikahaku-clear');
         const closeBtn = modal.querySelector('#ai-pikahaku-close');
+        const footerCloseBtn = modal.querySelector('#ai-pikahaku-footer-close');
 
-        modalOverlay.addEventListener('click', (e) => {
-            if (e.target === modalOverlay) suljePikahakuModaali();
-        });
+        function suljePikahakuTapahtuma(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            if (searchInput && document.activeElement === searchInput) {
+                searchInput.blur();
+            }
+            suljePikahakuModaali();
+        }
 
-        closeBtn.addEventListener('click', suljePikahakuModaali);
+        // Kiinnitetään kosketus- ja hiirikuuntelijat sulkupainikkeisiin (välitön reaktio ilman näppäimistöviivettä)
+        closeBtn.addEventListener('pointerdown', suljePikahakuTapahtuma);
+        closeBtn.addEventListener('touchstart', suljePikahakuTapahtuma, { passive: false });
+        closeBtn.addEventListener('click', suljePikahakuTapahtuma);
 
-        clearBtn.addEventListener('click', () => {
+        if (footerCloseBtn) {
+            footerCloseBtn.addEventListener('pointerdown', suljePikahakuTapahtuma);
+            footerCloseBtn.addEventListener('touchstart', suljePikahakuTapahtuma, { passive: false });
+            footerCloseBtn.addEventListener('click', suljePikahakuTapahtuma);
+        }
+
+        function onOverlayTapahtuma(e) {
+            if (e.target === modalOverlay) {
+                suljePikahakuTapahtuma(e);
+            }
+        }
+        modalOverlay.addEventListener('pointerdown', onOverlayTapahtuma);
+        modalOverlay.addEventListener('touchstart', onOverlayTapahtuma, { passive: false });
+        modalOverlay.addEventListener('click', onOverlayTapahtuma);
+
+        // Estetään taustaikkunan tahaton rullaus kosketuslaitteilla
+        modalOverlay.addEventListener('touchmove', (e) => {
+            if (resultsContainer && resultsContainer.contains(e.target)) {
+                e.stopPropagation();
+                return;
+            }
+            e.preventDefault();
+        }, { passive: false });
+
+        function tyhjennaHakuTapahtuma(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
             searchInput.value = '';
             clearBtn.style.display = 'none';
             searchInput.focus();
             naytaAlkuohje();
-        });
+        }
+        clearBtn.addEventListener('pointerdown', tyhjennaHakuTapahtuma);
+        clearBtn.addEventListener('touchstart', tyhjennaHakuTapahtuma, { passive: false });
+        clearBtn.addEventListener('click', tyhjennaHakuTapahtuma);
 
         searchInput.addEventListener('input', () => {
             const val = searchInput.value.trim();
@@ -7704,7 +7759,7 @@ async function fetchProductLocations(tuoteno) {
         if (!resultsContainer) return;
         selectedListIndex = -1;
         resultsContainer.innerHTML = `
-            <div style="text-align:center; padding:32px 20px; color:#64748b;">
+            <div style="text-align:center; padding:32px 20px; color:#64748b; min-height:180px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
                 <div style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; background:#f1f5f9; border-radius:50%; margin-bottom:12px;">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </div>
@@ -7768,7 +7823,7 @@ async function fetchProductLocations(tuoteno) {
                     <span>Hakutulokset: <b>${escapeHtml(query)}</b> (${products.length} osumaa)</span>
                     <span style="font-size:11px; font-weight:500; color:#64748b;">Selaa nuolinäppäimillä tai klikkaa</span>
                 </div>
-                <div id="ai-list-scrollbox" style="display:flex; flex-direction:column; gap:6px; max-height:48vh; overflow-y:auto; padding-right:4px;">
+                <div id="ai-list-scrollbox" style="display:flex; flex-direction:column; gap:6px; max-height:48vh; overflow-y:auto; overscroll-behavior:contain !important; -webkit-overflow-scrolling:touch; touch-action:pan-y; padding-right:4px;">
                     ${products.map((p, idx) => {
                         const isFirst = idx === 0 ? 'ai-selected' : '';
                         let badgeHtml = '';
@@ -7988,6 +8043,15 @@ async function fetchProductLocations(tuoteno) {
     // =========================================================================
     function avaaPikahakuModaali(esitaytettyKoodi = '') {
         luoPikahakuModaali();
+
+        // Lukitaan taustasivun rullaus modaalin ollessa auki
+        try {
+            prevBodyOverflow = document.body.style.overflow;
+            prevHtmlOverflow = document.documentElement.style.overflow;
+            document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
+        } catch (e) {}
+
         modalOverlay.style.display = 'flex';
         const clearBtn = modalOverlay.querySelector('#ai-pikahaku-clear');
         if (esitaytettyKoodi) {
@@ -8009,6 +8073,14 @@ async function fetchProductLocations(tuoteno) {
         if (modalOverlay) {
             modalOverlay.style.display = 'none';
         }
+        if (searchInput && document.activeElement === searchInput) {
+            searchInput.blur();
+        }
+        // Palautetaan taustasivun rullaus
+        try {
+            document.body.style.overflow = prevBodyOverflow || '';
+            document.documentElement.style.overflow = prevHtmlOverflow || '';
+        } catch (e) {}
     }
 
     // Debounce ja tilanhallinta kaksoisavauksen ja välittömän sulkeutumisen estoon
