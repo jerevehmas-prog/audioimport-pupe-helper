@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      7.5
+// @version      7.6
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, ennustava pikahaku (Alt+F, Alt+P, F2), varastopaikkasiirrot oletuspaikalla, yhtenäistetyt Pupesoft-napit, siistitty saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -1228,16 +1228,31 @@
                     font-weight: 800 !important;
                 }
 
-                /* Kerätyn rivin painike: selkeä VIHREÄ kuittausnappi */
-                #maintable tbody tr.yksittainenrivikeruu_keratytrivit button.kerattavatrivit {
-                    background-color: #059669 !important;
+                /* Kerätyn rivin painike: selkeä VIHREÄ kuittausnappi (Pupesoft-tyyli) */
+                #maintable tbody tr.yksittainenrivikeruu_keratytrivit button.kerattavatrivit,
+                #maintable tbody tr.yksittainenrivikeruu_keratytrivit input.kerattavatrivit {
+                    background: #059669 !important;
+                    background-image: none !important;
                     color: #ffffff !important;
-                    font-weight: 800 !important;
+                    font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                    font-size: 10pt !important;
+                    font-weight: normal !important;
+                    height: 26px !important;
+                    line-height: 24px !important;
+                    padding: 0 14px !important;
                     border: 1px solid #047857 !important;
-                    box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3) !important;
+                    border-radius: 2px !important;
+                    box-shadow: none !important;
+                    cursor: pointer !important;
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    vertical-align: middle !important;
+                    box-sizing: border-box !important;
                 }
-                #maintable tbody tr.yksittainenrivikeruu_keratytrivit button.kerattavatrivit:hover {
-                    background-color: #047857 !important;
+                #maintable tbody tr.yksittainenrivikeruu_keratytrivit button.kerattavatrivit:hover,
+                #maintable tbody tr.yksittainenrivikeruu_keratytrivit input.kerattavatrivit:hover {
+                    background: #047857 !important;
                 }
 
                 /* OK-kuittausikoni / teksti selkeänä vihreänä laattana */
@@ -1309,20 +1324,31 @@
                     font-size: 10.5pt !important;
                 }
 
-                /* Kerää-painikkeen tyyli keräämättömille riveille */
-                #maintable tbody tr.keraysrivi:not(.yksittainenrivikeruu_keratytrivit) button.kerattavatrivit {
-                    background-color: #0284c7 !important;
+                /* Kerää-painikkeen tyyli keräämättömille riveille (Aito Pupesoft-sininen) */
+                #maintable tbody tr.keraysrivi:not(.yksittainenrivikeruu_keratytrivit) button.kerattavatrivit,
+                #maintable tbody tr.keraysrivi:not(.yksittainenrivikeruu_keratytrivit) input.kerattavatrivit {
+                    background: #119fe7 !important;
+                    background-image: none !important;
                     color: #ffffff !important;
-                    font-weight: bold !important;
-                    padding: 6px 14px !important;
-                    border-radius: 4px !important;
-                    border: none !important;
+                    font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                    font-size: 10pt !important;
+                    font-weight: normal !important;
+                    height: 26px !important;
+                    line-height: 24px !important;
+                    padding: 0 14px !important;
+                    border: 1px solid #1094d8 !important;
+                    border-radius: 2px !important;
                     cursor: pointer !important;
-                    font-size: 9.5pt !important;
-                    box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+                    box-shadow: none !important;
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    vertical-align: middle !important;
+                    box-sizing: border-box !important;
                 }
-                #maintable tbody tr.keraysrivi:not(.yksittainenrivikeruu_keratytrivit) button.kerattavatrivit:hover {
-                    background-color: #0369a1 !important;
+                #maintable tbody tr.keraysrivi:not(.yksittainenrivikeruu_keratytrivit) button.kerattavatrivit:hover,
+                #maintable tbody tr.keraysrivi:not(.yksittainenrivikeruu_keratytrivit) input.kerattavatrivit:hover {
+                    filter: brightness(0.9) !important;
                 }
                 /* ========================================================================= */
                 /* SKAALAUTUVA JA LAITEOPTIMOITU KERÄILYTAULUKKO (#maintable)                */
@@ -1733,15 +1759,15 @@ async function fetchProductLocations(tuoteno) {
                 paikkaSelect.style.verticalAlign = 'middle';
                 paikkaSelect.style.minWidth = '105px';
                 paikkaSelect.style.width = 'auto';
-                paikkaSelect.style.maxWidth = '125px';
+                paikkaSelect.style.maxWidth = '130px';
                 paikkaSelect.style.height = '24px';
                 paikkaSelect.style.lineHeight = '22px';
                 paikkaSelect.style.padding = '1px 18px 1px 6px';
-                paikkaSelect.style.fontSize = '9.5pt';
+                paikkaSelect.style.fontSize = '10pt';
                 paikkaSelect.style.boxSizing = 'border-box';
                 paikkaSelect.style.backgroundColor = '#ffffff';
                 paikkaSelect.style.border = '1px solid #cbd5e1';
-                paikkaSelect.style.borderRadius = '4px';
+                paikkaSelect.style.borderRadius = '2px';
             }
 
             paikkaTd.style.whiteSpace = 'nowrap';
@@ -1789,24 +1815,23 @@ async function fetchProductLocations(tuoteno) {
             btn.style.display = 'inline-flex';
             btn.style.alignItems = 'center';
             btn.style.justifyContent = 'center';
-            btn.style.gap = '3px';
-            btn.style.marginLeft = '4px';
+            btn.style.marginLeft = '6px';
             btn.style.marginTop = '0';
             btn.style.marginBottom = '0';
-            btn.style.padding = '0 6px';
-            btn.style.height = '23px';
-            btn.style.minHeight = '23px';
-            btn.style.maxHeight = '23px';
-            btn.style.lineHeight = '21px';
-            btn.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif';
-            btn.style.fontSize = '10px';
-            btn.style.fontWeight = '700';
+            btn.style.padding = '0 8px';
+            btn.style.height = '24px';
+            btn.style.minHeight = '24px';
+            btn.style.maxHeight = '24px';
+            btn.style.lineHeight = '22px';
+            btn.style.fontFamily = '"Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif';
+            btn.style.fontSize = '10pt';
+            btn.style.fontWeight = 'normal';
             btn.style.color = '#ffffff';
-            btn.style.background = '#4f46e5';
-            btn.style.border = '1px solid #4338ca';
-            btn.style.borderRadius = '3px';
+            btn.style.background = '#119fe7';
+            btn.style.border = '1px solid #1094d8';
+            btn.style.borderRadius = '2px';
             btn.style.cursor = 'pointer';
-            btn.style.boxShadow = '0 1px 2px rgba(79, 70, 229, 0.2)';
+            btn.style.boxShadow = 'none';
             btn.style.verticalAlign = 'middle';
             btn.style.whiteSpace = 'nowrap';
             btn.style.boxSizing = 'border-box';
@@ -1935,18 +1960,18 @@ async function fetchProductLocations(tuoteno) {
             }
 
             #ai-scan-bar {
-                margin: 10px 0 14px 0;
-                padding: 14px 18px;
-                background: #ffffff;
+                margin: 8px 0 10px 0;
+                padding: 8px 12px;
+                background: #f8fafc;
                 color: #1e293b;
                 border: 1px solid #cbd5e1;
-                border-radius: 8px;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                border-radius: 2px;
+                box-shadow: none;
+                font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif;
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
-                gap: 12px;
+                gap: 8px;
             }
 
             .ai-scan-bar-top {
@@ -1954,26 +1979,26 @@ async function fetchProductLocations(tuoteno) {
                 justify-content: space-between;
                 align-items: center;
                 flex-wrap: wrap;
-                gap: 10px;
+                gap: 8px;
             }
 
             .ai-scan-bar-title {
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                font-size: 15px;
-                font-weight: 700;
+                font-size: 11pt;
+                font-weight: bold;
                 color: #1e293b;
-                letter-spacing: 0.2px;
+                letter-spacing: 0.5px;
             }
 
             .ai-scan-bar-title span.badge {
-                background: #f0fdf4;
-                color: #166534;
-                border: 1px solid #bbf7d0;
-                padding: 3px 9px;
-                border-radius: 12px;
-                font-size: 11px;
+                background: #e2e8f0;
+                color: #334155;
+                border: 1px solid #cbd5e1;
+                padding: 2px 7px;
+                border-radius: 2px;
+                font-size: 10px;
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
@@ -1982,24 +2007,28 @@ async function fetchProductLocations(tuoteno) {
             .ai-scan-bar-controls {
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 6px;
                 flex-wrap: wrap;
             }
 
             .ai-scan-toggle-btn {
-                background: #f8fafc;
-                color: #475569;
+                background: #ffffff;
+                color: #334155;
                 border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 8px 14px;
-                font-size: 13px;
-                font-weight: 600;
-                min-height: 42px;
+                border-radius: 2px;
+                padding: 0 10px;
+                font-family: "Lato", "Helvetica", Arial, sans-serif;
+                font-size: 10pt;
+                font-weight: normal;
+                height: 26px;
+                min-height: 26px;
+                line-height: 24px;
+                box-shadow: none;
                 cursor: pointer;
                 transition: all 0.15s ease;
                 display: inline-flex;
                 align-items: center;
-                gap: 6px;
+                justify-content: center;
                 user-select: none;
                 touch-action: manipulation;
                 box-sizing: border-box;
@@ -2010,23 +2039,28 @@ async function fetchProductLocations(tuoteno) {
                 border-color: #94a3b8;
             }
             .ai-scan-toggle-btn.active {
-                background: #f0f9ff;
-                border-color: #0284c7;
+                background: #e0f2fe;
+                border-color: #38bdf8;
                 color: #0369a1;
-                font-weight: 700;
+                font-weight: 600;
             }
 
             .ai-scan-progress-pill {
-                background: #f8fafc;
+                background: #ffffff;
                 color: #1e293b;
                 border: 1px solid #cbd5e1;
-                padding: 8px 14px;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: 700;
+                padding: 0 10px;
+                border-radius: 2px;
+                font-family: "Lato", "Helvetica", Arial, sans-serif;
+                font-size: 10pt;
+                font-weight: 600;
                 display: inline-flex;
                 align-items: center;
-                min-height: 42px;
+                justify-content: center;
+                height: 26px;
+                min-height: 26px;
+                line-height: 24px;
+                box-shadow: none;
                 box-sizing: border-box;
             }
             .ai-scan-progress-pill.all-done {
@@ -2038,18 +2072,19 @@ async function fetchProductLocations(tuoteno) {
             .ai-scan-input-wrap {
                 display: flex;
                 align-items: center;
-                gap: 10px;
+                gap: 6px;
                 background: #ffffff;
-                border: 1.5px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 4px 6px 4px 12px;
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+                border: 1px solid #94a3b8;
+                border-radius: 2px;
+                padding: 1px 2px 1px 8px;
+                height: 28px;
+                box-shadow: none;
                 box-sizing: border-box;
-                transition: border-color 0.15s ease, box-shadow 0.15s ease;
+                transition: border-color 0.15s ease;
             }
             .ai-scan-input-wrap:focus-within {
-                border-color: #01a1eb;
-                box-shadow: 0 0 0 3px rgba(1, 161, 235, 0.15);
+                border-color: #119fe7;
+                box-shadow: 0 0 0 1px #119fe7;
             }
 
             #ai-scan-field {
@@ -2057,42 +2092,47 @@ async function fetchProductLocations(tuoteno) {
                 background: transparent;
                 border: none;
                 color: #0f172a;
-                font-size: 16px;
+                font-family: "Lato", "Helvetica", Arial, sans-serif;
+                font-size: 10pt;
                 font-weight: 600;
                 outline: none;
-                padding: 8px 4px;
-                min-width: 160px;
-                min-height: 40px;
+                padding: 0 4px;
+                min-width: 140px;
+                height: 24px;
+                min-height: 24px;
                 box-sizing: border-box;
             }
             #ai-scan-field::placeholder {
                 color: #94a3b8;
-                font-size: 14px;
+                font-size: 9.5pt;
                 font-weight: 400;
             }
 
             .ai-scan-submit-btn {
-                background: #01a1eb;
+                background: #119fe7;
                 color: #ffffff;
-                border: none;
-                border-radius: 5px;
-                padding: 8px 20px;
-                font-weight: 700;
-                font-size: 14px;
-                min-height: 42px;
+                border: 1px solid #1094d8;
+                border-radius: 2px;
+                padding: 0 14px;
+                font-family: "Lato", "Helvetica", Arial, sans-serif;
+                font-weight: normal;
+                font-size: 10pt;
+                height: 24px;
+                min-height: 24px;
+                line-height: 22px;
                 cursor: pointer;
                 touch-action: manipulation;
-                transition: background-color 0.15s ease;
+                transition: filter 0.15s ease;
                 box-sizing: border-box;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
             }
             .ai-scan-submit-btn:hover {
-                background: #0088c7;
+                filter: brightness(0.9);
             }
             .ai-scan-submit-btn:active {
-                background: #0077b0;
+                filter: brightness(0.8);
             }
 
             .ai-scan-status-line {
@@ -2100,9 +2140,10 @@ async function fetchProductLocations(tuoteno) {
                 justify-content: space-between;
                 align-items: center;
                 flex-wrap: wrap;
-                gap: 8px;
-                font-size: 12.5px;
-                min-height: 22px;
+                gap: 6px;
+                font-size: 11px;
+                color: #64748b;
+                min-height: 18px;
             }
 
             .ai-scan-status-msg {
@@ -2121,12 +2162,12 @@ async function fetchProductLocations(tuoteno) {
                 z-index: 999999;
                 min-width: 280px;
                 max-width: 90vw;
-                padding: 12px 20px;
-                border-radius: 8px;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-                font-size: 14px;
+                padding: 10px 18px;
+                border-radius: 2px;
+                font-family: "Lato", "Helvetica", Arial, sans-serif;
+                font-size: 10pt;
                 font-weight: 600;
-                box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
                 display: none;
                 transition: opacity 0.2s ease;
                 box-sizing: border-box;
@@ -2136,29 +2177,31 @@ async function fetchProductLocations(tuoteno) {
             /* Tablet & Mobile optimointi */
             @media (max-width: 860px) {
                 #ai-scan-bar {
-                    margin: 8px 0 12px 0;
-                    padding: 12px 14px;
-                    gap: 10px;
+                    margin: 6px 0 10px 0;
+                    padding: 8px 10px;
+                    gap: 8px;
                 }
                 .ai-scan-bar-top {
-                    gap: 8px;
+                    gap: 6px;
                 }
                 .ai-scan-bar-controls {
                     flex-grow: 1;
                     justify-content: flex-end;
                 }
                 .ai-scan-toggle-btn, .ai-scan-progress-pill {
-                    min-height: 44px;
-                    padding: 8px 12px;
+                    height: 28px;
+                    min-height: 28px;
+                    padding: 0 10px;
                 }
                 #ai-scan-field {
-                    min-height: 44px;
-                    font-size: 16px;
+                    height: 26px;
+                    min-height: 26px;
+                    font-size: 10pt;
                 }
                 .ai-scan-submit-btn {
-                    min-height: 44px;
-                    padding: 8px 20px;
-                    font-size: 15px;
+                    height: 26px;
+                    min-height: 26px;
+                    padding: 0 14px;
                 }
             }
 
@@ -2166,7 +2209,7 @@ async function fetchProductLocations(tuoteno) {
                 .ai-scan-bar-top {
                     flex-direction: column;
                     align-items: stretch;
-                    gap: 10px;
+                    gap: 8px;
                 }
                 .ai-scan-bar-title {
                     justify-content: space-between;
@@ -2174,7 +2217,7 @@ async function fetchProductLocations(tuoteno) {
                 .ai-scan-bar-controls {
                     display: grid;
                     grid-template-columns: 1fr 1fr;
-                    gap: 8px;
+                    gap: 6px;
                     width: 100%;
                 }
                 .ai-scan-progress-pill {
@@ -2182,7 +2225,7 @@ async function fetchProductLocations(tuoteno) {
                     justify-content: center;
                 }
                 .ai-scan-input-wrap {
-                    padding: 4px 6px 4px 10px;
+                    padding: 1px 2px 1px 8px;
                 }
                 .ai-scan-status-line {
                     flex-direction: column;
@@ -2195,15 +2238,14 @@ async function fetchProductLocations(tuoteno) {
                 /* Helpotetaan rivin kuittausta tablet-kosketusnäytöillä */
                 button.kerattavatrivit,
                 input.kerattavatrivit {
-                    min-height: 40px !important;
+                    min-height: 32px !important;
                     min-width: 68px !important;
-                    font-size: 13px !important;
-                    font-weight: bold !important;
+                    font-size: 10pt !important;
                     touch-action: manipulation !important;
                 }
                 table.tuotekysely td, table#maintable td {
-                    padding-top: 8px !important;
-                    padding-bottom: 8px !important;
+                    padding-top: 6px !important;
+                    padding-bottom: 6px !important;
                 }
             }
 
@@ -2211,16 +2253,20 @@ async function fetchProductLocations(tuoteno) {
                 display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
-                gap: 3px !important;
-                height: 23px !important;
-                min-height: 23px !important;
-                max-height: 23px !important;
-                line-height: 21px !important;
-                padding: 0 6px !important;
-                font-size: 10px !important;
-                font-weight: 700 !important;
-                margin-left: 4px !important;
-                border-radius: 3px !important;
+                height: 24px !important;
+                min-height: 24px !important;
+                max-height: 24px !important;
+                line-height: 22px !important;
+                padding: 0 8px !important;
+                font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                font-size: 10pt !important;
+                font-weight: normal !important;
+                margin-left: 6px !important;
+                border-radius: 2px !important;
+                border: 1px solid #1094d8 !important;
+                background: #119fe7 !important;
+                color: #ffffff !important;
+                box-shadow: none !important;
                 vertical-align: middle !important;
                 box-sizing: border-box !important;
             }
@@ -2509,10 +2555,10 @@ async function fetchProductLocations(tuoteno) {
 
         const pill = document.getElementById('ai-scan-progress-pill');
         if (pill) {
-            pill.textContent = `📊 ${collectedCount} / ${totalCount} kerätty (${percent}%)`;
+            pill.textContent = `${collectedCount} / ${totalCount} kerätty (${percent}%)`;
             if (collectedCount === totalCount) {
                 pill.classList.add('all-done');
-                pill.textContent = `🎉 Kaikki kerätty! (${totalCount}/${totalCount})`;
+                pill.textContent = `Kaikki kerätty (${totalCount}/${totalCount})`;
             } else {
                 pill.classList.remove('all-done');
             }
@@ -2790,26 +2836,24 @@ async function fetchProductLocations(tuoteno) {
         scanBar.innerHTML = `
             <div class="ai-scan-bar-top">
                 <div class="ai-scan-bar-title">
-                    <span style="font-size:18px;">📱</span>
                     <span>SKANNAUSKERÄYS</span>
-                    <span class="badge">Aktiivinen</span>
+                    <span class="badge" id="ai-scan-mode-badge">${scanModeActive ? 'Aktiivinen' : 'Pois'}</span>
                 </div>
                 <div class="ai-scan-bar-controls">
                     <button type="button" id="ai-toggle-sound" class="ai-scan-toggle-btn ${soundEnabled ? 'active' : ''}" title="Kytke piippausäänet päälle/pois">
-                        ${soundEnabled ? '🔊 Äänet: Päällä' : '🔇 Äänet: Pois'}
+                        ${soundEnabled ? 'Äänet: Päällä' : 'Äänet: Pois'}
                     </button>
                     <button type="button" id="ai-toggle-mode" class="ai-scan-toggle-btn ${scanModeActive ? 'active' : ''}" title="Ota skannauskeräys käyttöön tai poista se käytöstä">
-                        ${scanModeActive ? '⚡ Skannaus: Päällä' : '⏸️ Skannaus: Pois'}
+                        ${scanModeActive ? 'Skannaus: Päällä' : 'Skannaus: Pois'}
                     </button>
                     <div id="ai-scan-progress-pill" class="ai-scan-progress-pill">
-                        📊 Ladataan...
+                        Ladataan...
                     </div>
                 </div>
             </div>
 
             <div class="ai-scan-input-wrap">
-                <span style="font-size:16px; user-select:none;">🔍</span>
-                <input type="text" id="ai-scan-field" placeholder="Piippaa viivakoodi lukijalla tai kirjoita koodi ja paina Enter..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
+                <input type="text" id="ai-scan-field" placeholder="Lue viivakoodi lukijalla tai syötä koodi ja paina Enter..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
                 <button type="button" id="ai-scan-submit-btn" class="ai-scan-submit-btn" title="Kuittaa skannattu koodi">
                     Kuittaa
                 </button>
@@ -2817,10 +2861,10 @@ async function fetchProductLocations(tuoteno) {
 
             <div class="ai-scan-status-line">
                 <div id="ai-scan-status-msg" class="ai-scan-status-msg">
-                    <span>Valmiina piippaukseen (Bluetooth / USB / näppäimistö)</span>
+                    <span>Valmiina viivakoodin lukuun (USB / Bluetooth / näppäimistö)</span>
                 </div>
-                <div style="font-size:12px; color:#64748b;">
-                    Vaihtoehtoinen keräystapa: Voit myös klikata rivejä normaalisti käsin.
+                <div style="font-size:11px; color:#64748b;">
+                    Voit kuitata rivit myös käsin taulukosta [ Kerää ] -napilla.
                 </div>
             </div>
         `;
@@ -2833,7 +2877,7 @@ async function fetchProductLocations(tuoteno) {
             soundEnabled = !soundEnabled;
             localStorage.setItem(STORAGE_KEY_SOUND, soundEnabled ? 'true' : 'false');
             soundBtn.className = `ai-scan-toggle-btn ${soundEnabled ? 'active' : ''}`;
-            soundBtn.innerHTML = soundEnabled ? '🔊 Äänet: Päällä' : '🔇 Äänet: Pois';
+            soundBtn.textContent = soundEnabled ? 'Äänet: Päällä' : 'Äänet: Pois';
             if (soundEnabled) playSuccessChime();
         };
 
@@ -2842,11 +2886,13 @@ async function fetchProductLocations(tuoteno) {
             scanModeActive = !scanModeActive;
             localStorage.setItem(STORAGE_KEY_ACTIVE, scanModeActive ? 'true' : 'false');
             modeBtn.className = `ai-scan-toggle-btn ${scanModeActive ? 'active' : ''}`;
-            modeBtn.innerHTML = scanModeActive ? '⚡ Skannaus: Päällä' : '⏸️ Skannaus: Pois';
+            modeBtn.textContent = scanModeActive ? 'Skannaus: Päällä' : 'Skannaus: Pois';
+            const badge = document.getElementById('ai-scan-mode-badge');
+            if (badge) badge.textContent = scanModeActive ? 'Aktiivinen' : 'Pois';
             const statusMsgEl = document.getElementById('ai-scan-status-msg');
             if (statusMsgEl) {
                 statusMsgEl.innerHTML = scanModeActive ?
-                    '<span>Valmiina piippaukseen (Bluetooth / USB / näppäimistö)</span>' :
+                    '<span>Valmiina viivakoodin lukuun (USB / Bluetooth / näppäimistö)</span>' :
                     '<span style="color:#64748b;">Skannaus pois käytöstä. Klikkaa "Skannaus: Pois" aktivoidaksesi.</span>';
             }
         };
@@ -3562,8 +3608,7 @@ async function fetchProductLocations(tuoteno) {
             if (!tdRahti) {
                 tdRahti = document.createElement('td');
                 tdRahti.className = 'ai-rahti-td';
-                const keraaValign = keraaTd ? (keraaTd.getAttribute('valign') || '') : '';
-                tdRahti.style.cssText = `text-align: left !important; ${keraaValign ? `vertical-align: ${keraaValign} !important;` : ''} padding: 5px !important; white-space: nowrap;`;
+                tdRahti.style.cssText = 'text-align: left !important; vertical-align: middle !important; padding: 4px 6px !important; white-space: nowrap !important;';
                 if (keraaTd && keraaTd.nextSibling) {
                     keraaTd.parentNode.insertBefore(tdRahti, keraaTd.nextSibling);
                 } else {
@@ -3582,21 +3627,32 @@ async function fetchProductLocations(tuoteno) {
                 tdRahti.appendChild(rahtiBtn);
             }
 
-            rahtiBtn.style.border = 'none';
-            rahtiBtn.style.borderRadius = '5px';
-            rahtiBtn.style.padding = '4px 9px';
-            rahtiBtn.style.fontSize = '11px';
-            rahtiBtn.style.fontWeight = 'bold';
-            rahtiBtn.style.cursor = 'pointer';
-            rahtiBtn.style.display = 'inline-flex';
-            rahtiBtn.style.alignItems = 'center';
-            rahtiBtn.style.gap = '5px';
-            rahtiBtn.style.transition = 'all 0.15s ease';
+            rahtiBtn.style.cssText = `
+                background: #119fe7 !important;
+                background-image: none !important;
+                color: #ffffff !important;
+                border: 1px solid #1094d8 !important;
+                border-radius: 2px !important;
+                font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                font-size: 10pt !important;
+                font-weight: normal !important;
+                height: 26px !important;
+                line-height: 24px !important;
+                padding: 0 10px !important;
+                box-shadow: none !important;
+                box-sizing: border-box !important;
+                cursor: pointer !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                vertical-align: middle !important;
+                margin: 0 !important;
+                text-shadow: none !important;
+                outline: none !important;
+                transition: filter 0.15s ease !important;
+            `;
 
             if (hasMultiple) {
-                rahtiBtn.style.background = '#2563eb';
-                rahtiBtn.style.color = '#ffffff';
-                rahtiBtn.style.boxShadow = '0 1px 3px rgba(37, 99, 235, 0.3)';
                 rahtiBtn.innerHTML = `Laske rahti <span class="ai-rahti-badge">${custOrders.length}</span>`;
                 rahtiBtn.title = `Asiakkaalla on ${custOrders.length} tilausta listalla. Klikkaa yhdistääksesi!`;
                 rahtiBtn.onclick = (e) => {
@@ -3605,9 +3661,6 @@ async function fetchProductLocations(tuoteno) {
                     avaaYhdistelyModaali(ord, custOrders, ord.customerName);
                 };
             } else {
-                rahtiBtn.style.background = '#0284c7';
-                rahtiBtn.style.color = '#ffffff';
-                rahtiBtn.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.1)';
                 rahtiBtn.textContent = 'Laske rahti';
                 rahtiBtn.title = 'Avaa Rahtilaskuri ja siirrä tämän tilauksen tiedot';
                 rahtiBtn.onclick = (e) => {
@@ -3626,12 +3679,34 @@ async function fetchProductLocations(tuoteno) {
             if (!rahtiValituilleBtn) {
                 rahtiValituilleBtn = document.createElement('button');
                 rahtiValituilleBtn.id = 'ai-keraa-rahti-valituille-btn';
+                rahtiValituilleBtn.className = 'ai-rahti-btn';
                 rahtiValituilleBtn.type = 'button';
                 rahtiValituilleBtn.textContent = 'Laske rahti valituille';
                 rahtiValituilleBtn.title = 'Laske rahti valituille tilauksille yhdessä Rahtilaskurissa';
-                rahtiValituilleBtn.style.cssText = 'background: #0284c7; color: #ffffff; border: none; padding: 6px 12px; margin-right: 8px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.1); vertical-align: middle;';
-                rahtiValituilleBtn.onmouseover = () => { rahtiValituilleBtn.style.background = '#0369a1'; };
-                rahtiValituilleBtn.onmouseout = () => { rahtiValituilleBtn.style.background = '#0284c7'; };
+                rahtiValituilleBtn.style.cssText = `
+                    background: #119fe7 !important;
+                    background-image: none !important;
+                    color: #ffffff !important;
+                    border: 1px solid #1094d8 !important;
+                    border-radius: 2px !important;
+                    font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                    font-size: 10pt !important;
+                    font-weight: normal !important;
+                    height: 26px !important;
+                    line-height: 24px !important;
+                    padding: 0 12px !important;
+                    margin-right: 8px !important;
+                    box-shadow: none !important;
+                    box-sizing: border-box !important;
+                    cursor: pointer !important;
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    vertical-align: middle !important;
+                    text-shadow: none !important;
+                    outline: none !important;
+                    transition: filter 0.15s ease !important;
+                `;
 
                 yhdistysSubmitBtn.parentNode.insertBefore(rahtiValituilleBtn, yhdistysSubmitBtn);
 
@@ -8860,13 +8935,13 @@ async function fetchProductLocations(tuoteno) {
 
             td.ai-rahti-td {
                 text-align: left !important;
-                padding: 5px !important;
+                vertical-align: middle !important;
+                padding: 4px 6px !important;
                 white-space: nowrap !important;
             }
 
             .ai-rahti-btn,
-            #ai-keraa-rahti-valituille-btn,
-            #ai-keraa-rahti-btn {
+            #ai-keraa-rahti-valituille-btn {
                 background: #119fe7 !important;
                 background-image: none !important;
                 color: #ffffff !important;
@@ -8877,7 +8952,7 @@ async function fetchProductLocations(tuoteno) {
                 font-weight: normal !important;
                 height: 26px !important;
                 line-height: 24px !important;
-                padding: 0 8px !important;
+                padding: 0 10px !important;
                 box-shadow: none !important;
                 box-sizing: border-box !important;
                 cursor: pointer !important;
@@ -8895,18 +8970,48 @@ async function fetchProductLocations(tuoteno) {
                 transition: filter 0.15s ease !important;
             }
 
+            #ai-keraa-rahti-btn {
+                background: #119fe7 !important;
+                background-image: none !important;
+                color: #ffffff !important;
+                border: 1px solid #1094d8 !important;
+                border-radius: 2px !important;
+                font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                font-size: 10pt !important;
+                font-weight: normal !important;
+                height: 26px !important;
+                line-height: 24px !important;
+                padding: 0 12px !important;
+                box-shadow: none !important;
+                box-sizing: border-box !important;
+                cursor: pointer !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                vertical-align: middle !important;
+                position: relative !important;
+                top: 0px !important;
+                margin: 0 0 0 24px !important;
+                text-shadow: none !important;
+                outline: none !important;
+                touch-action: manipulation !important;
+                -webkit-tap-highlight-color: transparent !important;
+                transition: filter 0.15s ease !important;
+            }
+
             .ai-pikasiirto-btn {
                 background: #119fe7 !important;
                 background-image: none !important;
                 color: #ffffff !important;
                 border: 1px solid #1094d8 !important;
                 border-radius: 2px !important;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
-                font-size: 11px !important;
-                font-weight: 700 !important;
+                font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                font-size: 10pt !important;
+                font-weight: normal !important;
                 height: 24px !important;
                 line-height: 22px !important;
                 padding: 0 8px !important;
+                margin-left: 6px !important;
                 box-shadow: none !important;
                 box-sizing: border-box !important;
                 cursor: pointer !important;
@@ -8927,9 +9032,9 @@ async function fetchProductLocations(tuoteno) {
                 color: #ffffff !important;
                 border: 1px solid #1094d8 !important;
                 border-radius: 2px !important;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
-                font-size: 11px !important;
-                font-weight: 700 !important;
+                font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                font-size: 10pt !important;
+                font-weight: normal !important;
                 height: 26px !important;
                 line-height: 24px !important;
                 padding: 0 10px !important;
@@ -9049,22 +9154,24 @@ async function fetchProductLocations(tuoteno) {
             const rahtiTd = rahtiBtn.closest('td');
             // Etsitään samalta riviltä aito Pupesoft-painike (Kerää, Näytä, Tulosta tms.)
             const refBtn = tr.querySelector(
+                'button[name="tilaus"], input[name="tilaus"], ' +
                 'input[type="submit"][value="Kerää"], input[value="Kerää"], ' +
+                'button[value="Kerää"], ' +
                 'input[type="submit"][value="Näytä"], input[value="Näytä"], ' +
                 'input[type="submit"][value="Tulosta"], input[value="Tulosta"], ' +
-                'input[type="submit"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn), ' +
-                'button[type="submit"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn), ' +
-                'input[type="button"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn)'
+                'input[type="submit"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn):not(.ai-release-order-btn), ' +
+                'button[type="submit"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn):not(.ai-release-order-btn), ' +
+                'input[type="button"]:not(.ai-rahti-btn):not(.ai-pikasiirto-btn):not(.ai-release-order-btn)'
             );
 
             if (refBtn) {
                 const refTd = refBtn.closest('td');
                 if (refTd && rahtiTd) {
                     rahtiTd.style.setProperty('text-align', 'left', 'important');
+                    rahtiTd.style.setProperty('vertical-align', 'middle', 'important');
+                    refTd.style.setProperty('vertical-align', 'middle', 'important');
                     try {
                         const compTd = window.getComputedStyle(refTd);
-                        const refValign = refTd.getAttribute('valign') || (compTd ? compTd.verticalAlign : '') || 'middle';
-                        rahtiTd.style.setProperty('vertical-align', refValign, 'important');
                         if (compTd && compTd.paddingTop) {
                             rahtiTd.style.setProperty('padding-top', compTd.paddingTop, 'important');
                             rahtiTd.style.setProperty('padding-bottom', compTd.paddingBottom, 'important');
@@ -9090,7 +9197,7 @@ async function fetchProductLocations(tuoteno) {
                 }
             } else if (rahtiTd) {
                 rahtiTd.style.setProperty('vertical-align', 'middle', 'important');
-                rahtiTd.style.setProperty('padding', '5px', 'important');
+                rahtiTd.style.setProperty('padding', '4px 6px', 'important');
                 rahtiTd.style.setProperty('text-align', 'left', 'important');
             }
         });
@@ -9240,6 +9347,11 @@ async function fetchProductLocations(tuoteno) {
             ).trim();
 
             if (headTitle) {
+                headTitle.style.display = 'inline-flex';
+                headTitle.style.alignItems = 'center';
+                headTitle.style.verticalAlign = 'middle';
+                headTitle.style.lineHeight = 'normal';
+
                 const isKeraaPika =
                     isOrderMarkedPika(keraaTilausNro) ||
                     checkParsedOrderIsPika(document.documentElement.outerHTML, keraaTilausNro);
@@ -9251,7 +9363,7 @@ async function fetchProductLocations(tuoteno) {
                         pikaBadge = document.createElement('span');
                         pikaBadge.id = 'ai-keraa-pika-badge';
                         pikaBadge.innerHTML = '🔥 PIKATILAUS';
-                        pikaBadge.style.cssText = 'background:#dc2626; color:#ffffff; font-size:11pt; font-weight:800; padding:3px 10px; border-radius:5px; margin-left:14px; vertical-align:middle; display:inline-block; box-shadow:0 2px 4px rgba(220,38,38,0.3);';
+                        pikaBadge.style.cssText = 'background:#dc2626; color:#ffffff; font-size:11pt; font-weight:800; padding:3px 10px; border-radius:2px; margin-left:14px; vertical-align:middle; display:inline-flex; align-items:center;';
                         headTitle.appendChild(pikaBadge);
                     }
                 }
@@ -9261,12 +9373,10 @@ async function fetchProductLocations(tuoteno) {
                     if (!rahtiKeraaBtn) {
                         rahtiKeraaBtn = document.createElement('button');
                         rahtiKeraaBtn.id = 'ai-keraa-rahti-btn';
+                        rahtiKeraaBtn.className = 'ai-rahti-btn';
                         rahtiKeraaBtn.type = 'button';
                         rahtiKeraaBtn.textContent = 'Laske rahti';
                         rahtiKeraaBtn.title = 'Avaa Rahtilaskuri ja siirrä tämän tilauksen tiedot';
-                        rahtiKeraaBtn.style.cssText = 'background:#0284c7; color:#ffffff; font-size:10pt; font-weight:800; padding:4px 12px; border-radius:6px; border:none; margin-left:14px; vertical-align:middle; display:inline-block; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,0.2); transition:all 0.15s ease;';
-                        rahtiKeraaBtn.onmouseover = () => { rahtiKeraaBtn.style.background = '#0369a1'; };
-                        rahtiKeraaBtn.onmouseout = () => { rahtiKeraaBtn.style.background = '#0284c7'; };
                         rahtiKeraaBtn.onclick = (e) => {
                             e.preventDefault();
                             showToast(`📦 Noudetaan tilaus #${keraaTilausNro} ja avataan Rahtilaskuri...`);
