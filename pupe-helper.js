@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      7.3
-// @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, ennustava pikahaku (Alt+F), varastopaikkasiirrot oletuspaikalla, yhtenäistetyt Pupesoft-napit, siistitty saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
+// @version      7.4
+// @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, ennustava pikahaku (Alt+F, Alt+P, F2), varastopaikkasiirrot oletuspaikalla, yhtenäistetyt Pupesoft-napit, siistitty saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
 // @match        https://*.ahkio.com/*
@@ -6663,13 +6663,7 @@ async function fetchProductLocations(tuoteno) {
         if (document.querySelector('frameset')) {
             return false;
         }
-        if (frameName === 'mainframe') {
-            return true;
-        }
-        if (window === window.top) {
-            return true;
-        }
-        return false;
+        return true;
     }
 
 // =========================================================================
@@ -7907,27 +7901,44 @@ async function fetchProductLocations(tuoteno) {
         }
     }
 
-    // Tehdään avaus- ja sulkufunktiot saataville globaalisti kehyksille
+    // Debounce ja tilanhallinta kaksoisavauksen ja välittömän sulkeutumisen estoon
+    let lastPikahakuToggleTime = 0;
+    function togglePikahakuModaali() {
+        const now = Date.now();
+        if (now - lastPikahakuToggleTime < 350) return;
+        lastPikahakuToggleTime = now;
+
+        const modal = document.getElementById('ai-pikahaku-overlay') || modalOverlay;
+        if (modal && modal.style.display === 'flex') {
+            suljePikahakuModaali();
+        } else {
+            avaaPikahakuModaali();
+        }
+    }
+
+    function isPikahakuHotkey(e) {
+        // 1. Alt + F tai Alt + P (Pikahaku ilman selaimen valikkokonfliktia)
+        if (e.altKey && !e.ctrlKey && !e.metaKey && (
+            e.code === 'KeyF' || e.key === 'f' || e.key === 'F' ||
+            e.code === 'KeyP' || e.key === 'p' || e.key === 'P'
+        )) {
+            return true;
+        }
+        // 2. Ctrl + Shift + F (moderni yleishaku)
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.code === 'KeyF' || e.key === 'f' || e.key === 'F')) {
+            return true;
+        }
+        // 3. F2 (nopea yhden painikkeen pikahaku)
+        if (!e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey && (e.key === 'F2' || e.code === 'F2')) {
+            return true;
+        }
+        return false;
+    }
+
+    // Tehdään avaus-, sulku- ja vaihtofunktiot saataville globaalisti kehyksille
     window.aiAvaaPikahaku = avaaPikahakuModaali;
     window.aiSuljePikahaku = suljePikahakuModaali;
-
-    window.addEventListener('keydown', (e) => {
-        if (e.altKey && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (modalOverlay && modalOverlay.style.display === 'flex') {
-                suljePikahakuModaali();
-            } else {
-                avaaPikahakuModaali();
-            }
-            return;
-        }
-
-        if (e.key === 'Escape' && modalOverlay && modalOverlay.style.display === 'flex') {
-            e.preventDefault();
-            suljePikahakuModaali();
-        }
-    }, true);
+    window.aiTogglePikahaku = togglePikahakuModaali;
 
     // =========================================================================
     // KELLUVA PIKAHAKU-PILL (Oikea alakulma)
@@ -7941,9 +7952,9 @@ async function fetchProductLocations(tuoteno) {
         pill.innerHTML = `
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <span>Pikahaku</span>
-            <span style="background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.12); padding:1px 6px; border-radius:4px; font-size:10px; font-weight:700; font-family:monospace;">Alt+F</span>
+            <span style="background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.12); padding:1px 6px; border-radius:4px; font-size:10px; font-weight:700; font-family:monospace;">Alt+F / Alt+P / F2</span>
         `;
-        pill.title = 'Avaa ennustava tuote- ja saldohaku (Alt + F)';
+        pill.title = 'Avaa ennustava tuote- ja saldohaku (Alt+F, Alt+P tai F2)';
         pill.style.cssText = `
             position: fixed;
             bottom: 18px;
@@ -9093,17 +9104,20 @@ async function fetchProductLocations(tuoteno) {
     if (isRahtilaskuri) {
         // Rahtilaskuri-vastaanotin hoidettu Osa 1:ssä
     } else if (isPupesoft) {
-        // 1. Kehysten suodatus ja Alt+F -viestinvälitys yläpalkista ja sivupalkista
+        // 1. Kehysten suodatus ja pikahaku-pikanäppäinten viestinvälitys yläpalkista ja sivupalkista
         if (!isMainWorkspace()) {
             window.addEventListener('keydown', (e) => {
-                if (e.altKey && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
+                if (isPikahakuHotkey(e)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
                     try {
                         const mainWin = window.top?._aiPikahakuMainWin ||
                                         window.top?.frames?.['mainframe'] ||
                                         window.parent?.frames?.['mainframe'];
-                        if (mainWin && typeof mainWin.aiAvaaPikahaku === 'function') {
-                            e.preventDefault();
-                            e.stopPropagation();
+                        if (mainWin && typeof mainWin.aiTogglePikahaku === 'function') {
+                            mainWin.aiTogglePikahaku();
+                        } else if (mainWin && typeof mainWin.aiAvaaPikahaku === 'function') {
                             mainWin.aiAvaaPikahaku();
                         }
                     } catch (err) {}
@@ -9120,24 +9134,24 @@ async function fetchProductLocations(tuoteno) {
 
         window.aiAvaaPikahaku = avaaPikahakuModaali;
         window.aiSuljePikahaku = suljePikahakuModaali;
+        window.aiTogglePikahaku = togglePikahakuModaali;
 
+        // 2. Yksi ainoa globaali näppäinkuuntelija päätyötilaan (kaappausvaiheessa)
         window.addEventListener('keydown', (e) => {
-            if (e.altKey && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
+            if (isPikahakuHotkey(e)) {
                 e.preventDefault();
                 e.stopPropagation();
-                const modal = document.getElementById('ai-pikahaku-overlay');
-                if (modal && modal.style.display === 'flex') {
-                    suljePikahakuModaali();
-                } else {
-                    avaaPikahakuModaali();
-                }
+                e.stopImmediatePropagation();
+                togglePikahakuModaali();
                 return;
             }
 
             if (e.key === 'Escape') {
-                const modal = document.getElementById('ai-pikahaku-overlay');
+                const modal = document.getElementById('ai-pikahaku-overlay') || modalOverlay;
                 if (modal && modal.style.display === 'flex') {
                     e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
                     suljePikahakuModaali();
                 }
             }
