@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Audioimport Pupe Helper
 // @namespace    https://audioimport.ahkio.com/
-// @version      7.6
+// @version      7.7
 // @description  Pupesoft keräyslistan priorisointi, keräilysivun riviväritykset, skannauskeräys viivakoodilla, ennustava pikahaku (Alt+F, Alt+P, F2), varastopaikkasiirrot oletuspaikalla, yhtenäistetyt Pupesoft-napit, siistitty saapumisen viivakoodiskannaus ja suora varastopaikkavalinta, työnjako, tuotekortin pikanäkymä (hover/touch) ja tilausten yhdistäminen Rahtilaskuriin
 // @match        https://audioimport.ahkio.com/*
 // @match        http://audioimport.ahkio.com/*
@@ -1364,21 +1364,32 @@
                 #maintable {
                     width: 100% !important;
                     min-width: 100% !important;
-                    max-width: 100% !important;
                     table-layout: auto !important;
                     border-collapse: separate !important;
                     border-spacing: 0 !important;
                     box-sizing: border-box !important;
                 }
 
-                /* 1. SARAKE: PAIKKA + VARASTOPAIKKASIIRTO (Kompakti, rinnakkain) */
+                #maintable th {
+                    font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                    font-size: 10pt !important;
+                    font-weight: bold !important;
+                    color: #475569 !important;
+                    vertical-align: middle !important;
+                    padding: 6px 8px !important;
+                    line-height: 1.25 !important;
+                    white-space: nowrap !important;
+                    overflow: visible !important;
+                    box-sizing: border-box !important;
+                }
+
+                /* 1. SARAKE: PAIKKA + VARASTOPAIKKASIIRTO */
                 #maintable th:nth-of-type(1),
                 #maintable th#paikka_header,
                 #maintable tbody tr.keraysrivi > td:nth-of-type(1),
                 #maintable tr.keraysrivi > td:nth-of-type(1) {
-                    width: 240px !important;
-                    min-width: 230px !important;
-                    max-width: 255px !important;
+                    width: 275px !important;
+                    min-width: 260px !important;
                     white-space: nowrap !important;
                     vertical-align: middle !important;
                     padding: 6px 8px !important;
@@ -1393,22 +1404,21 @@
                     height: 24px !important;
                     line-height: 22px !important;
                     padding: 1px 18px 1px 6px !important;
-                    font-size: 9.5pt !important;
+                    font-size: 10pt !important;
                     border: 1px solid #cbd5e1 !important;
-                    border-radius: 4px !important;
+                    border-radius: 2px !important;
                     background-color: #ffffff !important;
                     color: #1e293b !important;
                     vertical-align: middle !important;
                     box-sizing: border-box !important;
                 }
 
-                /* 2. SARAKE: TUOTENUMERO (Siisti ja kompakti, ei syö tilaa Nimitykseltä) */
+                /* 2. SARAKE: TUOTENUMERO */
                 #maintable th:nth-of-type(2),
                 #maintable tbody tr.keraysrivi > td:nth-of-type(2),
                 #maintable tr.keraysrivi > td:nth-of-type(2) {
-                    width: 130px !important;
-                    min-width: 110px !important;
-                    max-width: 150px !important;
+                    width: 135px !important;
+                    min-width: 120px !important;
                     white-space: nowrap !important;
                     vertical-align: middle !important;
                     padding: 6px 10px !important;
@@ -1416,19 +1426,19 @@
                     box-sizing: border-box !important;
                 }
 
-                /* 3. SARAKE: NIMITYS - JOUSTAVA PÄÄSARAKE JOKA SKAALAUTUU IKKUNAN MUKAAN */
+                /* 3. SARAKE: NIMITYS - JOUSTAVA PÄÄSARAKE */
                 #maintable th:nth-of-type(3),
                 #maintable tbody tr.keraysrivi > td:nth-of-type(3),
                 #maintable tr.keraysrivi > td:nth-of-type(3) {
                     width: auto !important;
-                    min-width: 240px !important;
+                    min-width: 200px !important;
                     vertical-align: middle !important;
                     padding: 6px 12px !important;
                     text-align: left !important;
                     word-break: normal !important;
                     overflow-wrap: break-word !important;
                     line-height: 1.35 !important;
-                    font-size: 9.5pt !important;
+                    font-size: 10pt !important;
                     color: #1e293b !important;
                     box-sizing: border-box !important;
                 }
@@ -1437,9 +1447,8 @@
                 #maintable th:nth-of-type(4),
                 #maintable tbody tr.keraysrivi > td:nth-of-type(4),
                 #maintable tr.keraysrivi > td:nth-of-type(4) {
-                    width: 50px !important;
-                    min-width: 44px !important;
-                    max-width: 55px !important;
+                    width: 65px !important;
+                    min-width: 60px !important;
                     white-space: nowrap !important;
                     text-align: center !important;
                     vertical-align: middle !important;
@@ -1451,15 +1460,14 @@
                 #maintable th:nth-of-type(5),
                 #maintable tbody tr.keraysrivi > td:nth-of-type(5),
                 #maintable tr.keraysrivi > td:nth-of-type(5) {
-                    width: 45px !important;
-                    min-width: 40px !important;
-                    max-width: 50px !important;
+                    width: 70px !important;
+                    min-width: 65px !important;
                     white-space: nowrap !important;
                     text-align: center !important;
                     vertical-align: middle !important;
                     padding: 6px 4px !important;
                     color: #475569 !important;
-                    font-size: 9pt !important;
+                    font-size: 10pt !important;
                     box-sizing: border-box !important;
                 }
 
@@ -1467,58 +1475,58 @@
                 #maintable th:nth-of-type(6),
                 #maintable tbody tr.keraysrivi > td:nth-of-type(6),
                 #maintable tr.keraysrivi > td:nth-of-type(6) {
-                    width: 65px !important;
-                    min-width: 60px !important;
-                    max-width: 75px !important;
+                    width: 130px !important;
+                    min-width: 125px !important;
                     white-space: nowrap !important;
                     text-align: center !important;
                     vertical-align: middle !important;
-                    padding: 6px 4px !important;
+                    padding: 6px 6px !important;
                     box-sizing: border-box !important;
                 }
 
                 #maintable tr.keraysrivi > td:nth-of-type(6) input.poikkeava_maara {
-                    width: 42px !important;
+                    width: 50px !important;
                     height: 24px !important;
                     text-align: center !important;
-                    padding: 2px !important;
-                    font-size: 9.5pt !important;
+                    padding: 2px 4px !important;
+                    font-size: 10pt !important;
                     border: 1px solid #cbd5e1 !important;
-                    border-radius: 4px !important;
+                    border-radius: 2px !important;
                     box-sizing: border-box !important;
+                    margin: 0 auto !important;
                 }
 
                 /* 7. SARAKE: POIKKEAMAN KÄSITTELY */
                 #maintable th:nth-of-type(7),
                 #maintable tbody tr.keraysrivi > td:nth-of-type(7),
                 #maintable tr.keraysrivi > td:nth-of-type(7) {
-                    width: 110px !important;
-                    min-width: 95px !important;
-                    max-width: 120px !important;
+                    width: 170px !important;
+                    min-width: 160px !important;
+                    white-space: nowrap !important;
                     text-align: center !important;
                     vertical-align: middle !important;
-                    padding: 6px 4px !important;
+                    padding: 6px 6px !important;
                     box-sizing: border-box !important;
                 }
 
                 #maintable tr.keraysrivi > td:nth-of-type(7) select {
                     width: 100% !important;
-                    max-width: 115px !important;
+                    max-width: 155px !important;
                     height: 24px !important;
                     padding: 2px 4px !important;
-                    font-size: 9pt !important;
+                    font-size: 9.5pt !important;
                     border: 1px solid #cbd5e1 !important;
-                    border-radius: 4px !important;
+                    border-radius: 2px !important;
                     box-sizing: border-box !important;
+                    margin: 0 auto !important;
                 }
 
                 /* 8. SARAKE: MERKKAA KERÄTYKSI */
                 #maintable th:nth-of-type(8),
                 #maintable tbody tr.keraysrivi > td:nth-of-type(8),
                 #maintable tr.keraysrivi > td:nth-of-type(8) {
-                    width: 90px !important;
-                    min-width: 80px !important;
-                    max-width: 105px !important;
+                    width: 155px !important;
+                    min-width: 145px !important;
                     text-align: center !important;
                     vertical-align: middle !important;
                     padding: 6px 6px !important;
@@ -2285,21 +2293,32 @@ async function fetchProductLocations(tuoteno) {
             #maintable {
                 width: 100% !important;
                 min-width: 100% !important;
-                max-width: 100% !important;
                 table-layout: auto !important;
                 border-collapse: separate !important;
                 border-spacing: 0 !important;
                 box-sizing: border-box !important;
             }
 
-            /* 1. SARAKE: PAIKKA + VARASTOPAIKKASIIRTO (Kompakti, rinnakkain) */
+            #maintable th {
+                font-family: "Lato", "Helvetica", Arial, Verdana, Lucida, sans-serif !important;
+                font-size: 10pt !important;
+                font-weight: bold !important;
+                color: #475569 !important;
+                vertical-align: middle !important;
+                padding: 6px 8px !important;
+                line-height: 1.25 !important;
+                white-space: nowrap !important;
+                overflow: visible !important;
+                box-sizing: border-box !important;
+            }
+
+            /* 1. SARAKE: PAIKKA + VARASTOPAIKKASIIRTO */
             #maintable th:nth-of-type(1),
             #maintable th#paikka_header,
             #maintable tbody tr.keraysrivi > td:nth-of-type(1),
             #maintable tr.keraysrivi > td:nth-of-type(1) {
-                width: 240px !important;
-                min-width: 230px !important;
-                max-width: 255px !important;
+                width: 275px !important;
+                min-width: 260px !important;
                 white-space: nowrap !important;
                 vertical-align: middle !important;
                 padding: 6px 8px !important;
@@ -2314,22 +2333,21 @@ async function fetchProductLocations(tuoteno) {
                 height: 24px !important;
                 line-height: 22px !important;
                 padding: 1px 18px 1px 6px !important;
-                font-size: 9.5pt !important;
+                font-size: 10pt !important;
                 border: 1px solid #cbd5e1 !important;
-                border-radius: 4px !important;
+                border-radius: 2px !important;
                 background-color: #ffffff !important;
                 color: #1e293b !important;
                 vertical-align: middle !important;
                 box-sizing: border-box !important;
             }
 
-            /* 2. SARAKE: TUOTENUMERO (Siisti ja kompakti, ei syö tilaa Nimitykseltä) */
+            /* 2. SARAKE: TUOTENUMERO */
             #maintable th:nth-of-type(2),
             #maintable tbody tr.keraysrivi > td:nth-of-type(2),
             #maintable tr.keraysrivi > td:nth-of-type(2) {
-                width: 130px !important;
-                min-width: 110px !important;
-                max-width: 150px !important;
+                width: 135px !important;
+                min-width: 120px !important;
                 white-space: nowrap !important;
                 vertical-align: middle !important;
                 padding: 6px 10px !important;
@@ -2337,19 +2355,19 @@ async function fetchProductLocations(tuoteno) {
                 box-sizing: border-box !important;
             }
 
-            /* 3. SARAKE: NIMITYS - JOUSTAVA PÄÄSARAKE JOKA SKAALAUTUU IKKUNAN MUKAAN */
+            /* 3. SARAKE: NIMITYS - JOUSTAVA PÄÄSARAKE */
             #maintable th:nth-of-type(3),
             #maintable tbody tr.keraysrivi > td:nth-of-type(3),
             #maintable tr.keraysrivi > td:nth-of-type(3) {
                 width: auto !important;
-                min-width: 240px !important;
+                min-width: 200px !important;
                 vertical-align: middle !important;
                 padding: 6px 12px !important;
                 text-align: left !important;
                 word-break: normal !important;
                 overflow-wrap: break-word !important;
                 line-height: 1.35 !important;
-                font-size: 9.5pt !important;
+                font-size: 10pt !important;
                 color: #1e293b !important;
                 box-sizing: border-box !important;
             }
@@ -2358,9 +2376,8 @@ async function fetchProductLocations(tuoteno) {
             #maintable th:nth-of-type(4),
             #maintable tbody tr.keraysrivi > td:nth-of-type(4),
             #maintable tr.keraysrivi > td:nth-of-type(4) {
-                width: 50px !important;
-                min-width: 44px !important;
-                max-width: 55px !important;
+                width: 65px !important;
+                min-width: 60px !important;
                 white-space: nowrap !important;
                 text-align: center !important;
                 vertical-align: middle !important;
@@ -2372,15 +2389,14 @@ async function fetchProductLocations(tuoteno) {
             #maintable th:nth-of-type(5),
             #maintable tbody tr.keraysrivi > td:nth-of-type(5),
             #maintable tr.keraysrivi > td:nth-of-type(5) {
-                width: 45px !important;
-                min-width: 40px !important;
-                max-width: 50px !important;
+                width: 70px !important;
+                min-width: 65px !important;
                 white-space: nowrap !important;
                 text-align: center !important;
                 vertical-align: middle !important;
                 padding: 6px 4px !important;
                 color: #475569 !important;
-                font-size: 9pt !important;
+                font-size: 10pt !important;
                 box-sizing: border-box !important;
             }
 
@@ -2388,58 +2404,58 @@ async function fetchProductLocations(tuoteno) {
             #maintable th:nth-of-type(6),
             #maintable tbody tr.keraysrivi > td:nth-of-type(6),
             #maintable tr.keraysrivi > td:nth-of-type(6) {
-                width: 65px !important;
-                min-width: 60px !important;
-                max-width: 75px !important;
+                width: 130px !important;
+                min-width: 125px !important;
                 white-space: nowrap !important;
                 text-align: center !important;
                 vertical-align: middle !important;
-                padding: 6px 4px !important;
+                padding: 6px 6px !important;
                 box-sizing: border-box !important;
             }
 
             #maintable tr.keraysrivi > td:nth-of-type(6) input.poikkeava_maara {
-                width: 42px !important;
+                width: 50px !important;
                 height: 24px !important;
                 text-align: center !important;
-                padding: 2px !important;
-                font-size: 9.5pt !important;
+                padding: 2px 4px !important;
+                font-size: 10pt !important;
                 border: 1px solid #cbd5e1 !important;
-                border-radius: 4px !important;
+                border-radius: 2px !important;
                 box-sizing: border-box !important;
+                margin: 0 auto !important;
             }
 
             /* 7. SARAKE: POIKKEAMAN KÄSITTELY */
             #maintable th:nth-of-type(7),
             #maintable tbody tr.keraysrivi > td:nth-of-type(7),
             #maintable tr.keraysrivi > td:nth-of-type(7) {
-                width: 110px !important;
-                min-width: 95px !important;
-                max-width: 120px !important;
+                width: 170px !important;
+                min-width: 160px !important;
+                white-space: nowrap !important;
                 text-align: center !important;
                 vertical-align: middle !important;
-                padding: 6px 4px !important;
+                padding: 6px 6px !important;
                 box-sizing: border-box !important;
             }
 
             #maintable tr.keraysrivi > td:nth-of-type(7) select {
                 width: 100% !important;
-                max-width: 115px !important;
+                max-width: 155px !important;
                 height: 24px !important;
                 padding: 2px 4px !important;
-                font-size: 9pt !important;
+                font-size: 9.5pt !important;
                 border: 1px solid #cbd5e1 !important;
-                border-radius: 4px !important;
+                border-radius: 2px !important;
                 box-sizing: border-box !important;
+                margin: 0 auto !important;
             }
 
             /* 8. SARAKE: MERKKAA KERÄTYKSI */
             #maintable th:nth-of-type(8),
             #maintable tbody tr.keraysrivi > td:nth-of-type(8),
             #maintable tr.keraysrivi > td:nth-of-type(8) {
-                width: 90px !important;
-                min-width: 80px !important;
-                max-width: 105px !important;
+                width: 155px !important;
+                min-width: 145px !important;
                 text-align: center !important;
                 vertical-align: middle !important;
                 padding: 6px 6px !important;
